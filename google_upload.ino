@@ -1,4 +1,31 @@
+namespace {
+
+float approximateBatteryChargePercentForUpload(const ProbeReading &reading) {
+  if (!reading.batteryOutput.valid || !isfinite(reading.batteryOutput.busVoltageV)) {
+    return NAN;
+  }
+
+  // Very rough LiFePO4 estimate from battery voltage only.
+  // This is most meaningful near-rest and less accurate while charging/discharging.
+  const float emptyV = 12.0f;
+  const float fullV = 13.4f;
+  float pct = ((reading.batteryOutput.busVoltageV - emptyV) / (fullV - emptyV)) * 100.0f;
+
+  if (pct < 0.0f) pct = 0.0f;
+  if (pct > 100.0f) pct = 100.0f;
+  return pct;
+}
+
+bool solarChargingBatteryNowForUpload(const ProbeReading &reading) {
+  return reading.solarInput.valid && isfinite(reading.solarInput.currentA) && reading.solarInput.currentA > 0.05f;
+}
+
+} // namespace
+
 String makePayload(const ProbeReading &r) {
+  float batteryChargePct = approximateBatteryChargePercentForUpload(r);
+  bool solarChargingNow = solarChargingBatteryNowForUpload(r);
+
   String payload = "{";
   payload += "\"secret\":\"" + jsonEscape(String(SHARED_SECRET)) + "\",";
   payload += "\"device_id\":\"" + jsonEscape(String(DEVICE_ID)) + "\",";
@@ -32,6 +59,11 @@ String makePayload(const ProbeReading &r) {
   payload += "\"solar_input_power_w\":";
   payload += (r.solarInput.valid ? String(r.solarInput.powerW, 4) : String("null"));
   payload += ",";
+
+  payload += "\"battery_charge_level_pct_approx\":";
+  payload += (isfinite(batteryChargePct) ? String(batteryChargePct, 1) : String("null"));
+  payload += ",";
+  payload += "\"solar_charging_battery\":" + String(solarChargingNow ? "true" : "false") + ",";
 
   payload += "\"status\":\"OK\"";
   payload += "}";
