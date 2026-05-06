@@ -27,11 +27,14 @@ char WIFI_SSID[64] = "YOUR_WIFI_SSID";
 char WIFI_PASS[64] = "YOUR_WIFI_PASSWORD";
 char DEVICE_ID[64] = "opta-well-01";
 char SHARED_SECRET[128] = "PUT_A_LONG_RANDOM_SECRET_HERE";
+char POST_DEPLOYMENT_ID[128] = "PUT_YOUR_DEPLOYMENT_ID_HERE";
 
 // Google Apps Script Web App:
 // https://script.google.com/macros/s/DEPLOYMENT_ID/exec
 const char* POST_HOST = "script.google.com";
 const int   POST_PORT = 443;
+const char* POST_PATH_PREFIX = "/macros/s/";
+const char* POST_PATH_SUFFIX = "/exec";
 char POST_PATH[256] = "/macros/s/PUT_YOUR_DEPLOYMENT_ID_HERE/exec";
 
 // Local HTTP server port
@@ -138,6 +141,7 @@ bool userFsMounted = false;
 String userFsType = "unmounted";
 int userFsPartition = -1;
 String configLoadStatus = "not attempted";
+String configSource = "defaults";
 
 // ============================================================
 // Prototypes
@@ -181,5 +185,6 @@ String statusJson();
 void handleHttpClient();
 
 bool mountUserFileSystem();
+void buildPostPath();
 bool loadRuntimeConfig();
 void printRuntimeConfigSummary();
