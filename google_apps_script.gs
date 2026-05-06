@@ -1,0 +1,190 @@
+/**
+ * @OnlyCurrentDoc
+ */
+
+const SHARED_SECRET = 'PUT_A_LONG_RANDOM_SECRET_HERE';
+
+const HEADERS = [
+  'received_at_utc',
+  'timestamp_utc',
+  'device_id',
+  'modbus_id',
+  'serial_number',
+  'firmware',
+  'water_level_m',
+  'temperature_c',
+  'battery_output_monitor_present',
+  'battery_output_monitor_valid',
+  'battery_output_voltage_v',
+  'battery_output_current_a',
+  'battery_output_power_w',
+  'solar_input_monitor_present',
+  'solar_input_monitor_valid',
+  'solar_input_voltage_v',
+  'solar_input_current_a',
+  'solar_input_power_w',
+  'battery_charge_level_pct_approx',
+  'solar_charging_battery',
+  'status',
+  'upload_source',
+  'raw_json'
+];
+
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return jsonResponse({ ok: false, error: 'No POST body' });
+    }
+
+    const data = JSON.parse(e.postData.contents);
+
+    if (data.secret !== SHARED_SECRET) {
+      return jsonResponse({ ok: false, error: 'Unauthorized' });
+    }
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const spreadsheetName = ss.getName();
+    const receivedAtUtc = new Date().toISOString();
+
+    const timestampUtc = asString(data.timestamp_utc) || receivedAtUtc;
+    const sheetName = yearSheetNameFromTimestamp(timestampUtc);
+    const sheet = getOrCreateYearSheet(ss, sheetName);
+
+    const row = [
+      receivedAtUtc,
+      timestampUtc,
+      asString(data.device_id),
+      asIntOrBlank(data.modbus_id),
+      asString(data.serial_number),
+      asString(data.firmware),
+      asNumberOrBlank(data.water_level_m),
+      asNumberOrBlank(data.temperature_c),
+      asBooleanOrBlank(data.battery_output_monitor_present),
+      asBooleanOrBlank(data.battery_output_monitor_valid),
+      asNumberOrBlank(data.battery_output_voltage_v),
+      asNumberOrBlank(data.battery_output_current_a),
+      asNumberOrBlank(data.battery_output_power_w),
+      asBooleanOrBlank(data.solar_input_monitor_present),
+      asBooleanOrBlank(data.solar_input_monitor_valid),
+      asNumberOrBlank(data.solar_input_voltage_v),
+      asNumberOrBlank(data.solar_input_current_a),
+      asNumberOrBlank(data.solar_input_power_w),
+      asNumberOrBlank(data.battery_charge_level_pct_approx),
+      asBooleanOrBlank(data.solar_charging_battery),
+      asString(data.status || 'OK'),
+      'opta_http_post',
+      JSON.stringify(data)
+    ];
+
+    sheet.appendRow(row);
+
+    return jsonResponse({
+      ok: true,
+      message: 'Row appended',
+      spreadsheet_name: spreadsheetName,
+      sheet_name: sheetName,
+      received_at_utc: receivedAtUtc
+    });
+  } catch (err) {
+    return jsonResponse({ ok: false, error: String(err) });
+  }
+}
+
+function doGet() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  return jsonResponse({
+    ok: true,
+    message: 'Logger endpoint is running',
+    spreadsheet_name: ss.getName()
+  });
+}
+
+function getOrCreateYearSheet(ss, sheetName) {
+  let sheet = ss.getSheetByName(sheetName);
+
+  if (!sheet) {
+    sheet = ss.insertSheet(sheetName);
+    sheet.appendRow(HEADERS);
+    formatHeaderRow(sheet);
+    freezeHeaderRow(sheet);
+    autoResizeColumns(sheet);
+  } else {
+    ensureHeaderRow(sheet);
+  }
+
+  return sheet;
+}
+
+function ensureHeaderRow(sheet) {
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(HEADERS);
+    formatHeaderRow(sheet);
+    freezeHeaderRow(sheet);
+    autoResizeColumns(sheet);
+    return;
+  }
+
+  const existingHeaders = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
+  const needsRewrite = HEADERS.some((header, i) => existingHeaders[i] !== header);
+
+  if (needsRewrite) {
+    sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
+    formatHeaderRow(sheet);
+    freezeHeaderRow(sheet);
+    autoResizeColumns(sheet);
+  }
+}
+
+function yearSheetNameFromTimestamp(timestampUtc) {
+  const d = new Date(timestampUtc);
+  if (isNaN(d.getTime())) {
+    return String(new Date().getUTCFullYear());
+  }
+  return String(d.getUTCFullYear());
+}
+
+function formatHeaderRow(sheet) {
+  const range = sheet.getRange(1, 1, 1, HEADERS.length);
+  range.setFontWeight('bold');
+}
+
+function freezeHeaderRow(sheet) {
+  sheet.setFrozenRows(1);
+}
+
+function autoResizeColumns(sheet) {
+  sheet.autoResizeColumns(1, HEADERS.length);
+}
+
+function jsonResponse(obj) {
+  return ContentService
+    .createTextOutput(JSON.stringify(obj))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function asString(value) {
+  return value === undefined || value === null ? '' : String(value);
+}
+
+function asNumberOrBlank(value) {
+  if (value === undefined || value === null || value === '') return '';
+  const n = Number(value);
+  return Number.isFinite(n) ? n : '';
+}
+
+function asIntOrBlank(value) {
+  if (value === undefined || value === null || value === '') return '';
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) ? n : '';
+}
+
+function asBooleanOrBlank(value) {
+  if (value === undefined || value === null || value === '') return '';
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true') return true;
+    if (normalized === 'false') return false;
+  }
+  return '';
+}
