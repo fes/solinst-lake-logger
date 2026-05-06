@@ -14,6 +14,44 @@ void sendHttpJson(WiFiClient &client, int statusCode, const String &body) {
   client.print(body);
 }
 
+namespace {
+
+float approximateBatteryChargePercent(const ProbeReading &reading) {
+  if (!reading.batteryOutput.valid || !isfinite(reading.batteryOutput.busVoltageV)) {
+    return NAN;
+  }
+
+  // Very rough LiFePO4 estimate from battery voltage only.
+  // This is most meaningful near-rest and less accurate while charging/discharging.
+  const float emptyV = 12.0f;
+  const float fullV = 13.4f;
+  float pct = ((reading.batteryOutput.busVoltageV - emptyV) / (fullV - emptyV)) * 100.0f;
+
+  if (pct < 0.0f) pct = 0.0f;
+  if (pct > 100.0f) pct = 100.0f;
+  return pct;
+}
+
+bool solarChargingBatteryNow(const ProbeReading &reading) {
+  return reading.solarInput.valid && isfinite(reading.solarInput.currentA) && reading.solarInput.currentA > 0.05f;
+}
+
+void appendPowerMonitorJson(String &body, const char *prefix, const PowerMonitorSnapshot &snapshot) {
+  body += "\"" + String(prefix) + "_monitor_present\":" + String(snapshot.present ? "true" : "false") + ",";
+  body += "\"" + String(prefix) + "_monitor_valid\":" + String(snapshot.valid ? "true" : "false") + ",";
+  body += "\"" + String(prefix) + "_voltage_v\":";
+  body += (snapshot.valid ? String(snapshot.busVoltageV, 3) : String("null"));
+  body += ",";
+  body += "\"" + String(prefix) + "_current_a\":";
+  body += (snapshot.valid ? String(snapshot.currentA, 4) : String("null"));
+  body += ",";
+  body += "\"" + String(prefix) + "_power_w\":";
+  body += (snapshot.valid ? String(snapshot.powerW, 4) : String("null"));
+  body += ",";
+}
+
+} // namespace
+
 String probeJson(const ProbeReading &r) {
   String body = "{";
   body += "\"ok\":" + String(r.valid ? "true" : "false") + ",";
@@ -30,6 +68,11 @@ String probeJson(const ProbeReading &r) {
 }
 
 String statusJson() {
+  ProbeReading powerSnapshot = lastProbeReading;
+  readPowerMonitors(powerSnapshot);
+  float batteryChargePct = approximateBatteryChargePercent(powerSnapshot);
+  bool solarChargingNow = solarChargingBatteryNow(powerSnapshot);
+
   String body = "{";
   body += "\"device_id\":\"" + jsonEscape(String(DEVICE_ID)) + "\",";
   body += "\"wifi_connected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false") + ",";
@@ -53,7 +96,16 @@ String statusJson() {
   body += "\"successful_uploads\":" + String(successfulUploads) + ",";
   body += "\"failed_uploads\":" + String(failedUploads) + ",";
   body += "\"backlog_count\":" + String(backlogCount) + ",";
-  body += "\"dropped_backlog_entries\":" + String(droppedBacklogEntries);
+  body += "\"dropped_backlog_entries\":" + String(droppedBacklogEntries) + ",";
+  body += "\"power_monitor_init_status\":\"" + jsonEscape(powerMonitorInitStatus) + "\",";
+
+  appendPowerMonitorJson(body, "battery_output", powerSnapshot.batteryOutput);
+  appendPowerMonitorJson(body, "solar_input", powerSnapshot.solarInput);
+
+  body += "\"battery_charge_level_pct_approx\":";
+  body += (isfinite(batteryChargePct) ? String(batteryChargePct, 1) : String("null"));
+  body += ",";
+  body += "\"solar_charging_battery\":" + String(solarChargingNow ? "true" : "false");
   body += "}";
   return body;
 }
