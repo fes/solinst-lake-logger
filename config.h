@@ -6,6 +6,8 @@
 #include <WiFi.h>
 #include <WiFiUdp.h>
 #include <NTPClient.h>
+#include <Wire.h>
+#include <Adafruit_INA228.h>
 #include <math.h>
 #include <time.h>
 #include <stdio.h>
@@ -71,6 +73,12 @@ constexpr uint16_t REG_LEVEL_LO   = 0x0007;
 constexpr uint16_t REG_TEMP_HI    = 0x0008;
 constexpr uint16_t REG_TEMP_LO    = 0x0009;
 
+// INA228 power monitor defaults
+constexpr uint8_t INA228_BATTERY_OUTPUT_ADDR = 0x40;
+constexpr uint8_t INA228_SOLAR_INPUT_ADDR    = 0x41;
+constexpr float   INA228_SHUNT_OHMS          = 0.015f;
+constexpr float   INA228_MAX_CURRENT_AMPS    = 10.0f;
+
 const char* LEVEL_UNITS = "m";
 const char* TEMP_UNITS  = "C";
 
@@ -84,11 +92,21 @@ struct SensorIdentity {
   uint16_t fwBeta = 0;
 };
 
+struct PowerMonitorSnapshot {
+  bool present = false;
+  bool valid = false;
+  float busVoltageV = NAN;
+  float currentA = NAN;
+  float powerW = NAN;
+};
+
 struct ProbeReading {
   String timestampUtc;
   float level = NAN;
   float temperature = NAN;
   bool valid = false;
+  PowerMonitorSnapshot batteryOutput;
+  PowerMonitorSnapshot solarInput;
 };
 
 // ============================================================
@@ -99,6 +117,12 @@ WiFiSSLClient wifiSslClient;
 HttpClient httpClient(wifiSslClient, POST_HOST, POST_PORT);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, 3600000);
+
+Adafruit_INA228 batteryOutputMonitor;
+Adafruit_INA228 solarInputMonitor;
+bool batteryOutputMonitorPresent = false;
+bool solarInputMonitorPresent = false;
+String powerMonitorInitStatus = "not initialized";
 
 constexpr size_t BACKLOG_CAPACITY = 32;
 ProbeReading backlog[BACKLOG_CAPACITY];
@@ -163,6 +187,10 @@ void maintainClockSync();
 bool isClockValid();
 String nowUtcString();
 bool shouldLogNow();
+
+bool initPowerMonitors();
+void readPowerMonitors(ProbeReading &reading);
+void printPowerMonitorSummary();
 
 bool readInputRegister(uint8_t slaveId, uint16_t reg, uint16_t &value);
 bool readInputRegisterWithRetry(uint8_t slaveId, uint16_t reg, uint16_t &value);
