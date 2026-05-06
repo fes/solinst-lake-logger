@@ -8,6 +8,9 @@ void setup() {
   Serial.println();
   Serial.println("Starting Opta + Solinst 301 + Google Sheets logger + HTTP API");
 
+  loadRuntimeConfig();
+  printRuntimeConfigSummary();
+
   if (!ModbusRTUClient.begin(WLTS_BAUD, WLTS_SERIAL_CFG)) {
     Serial.println("ERROR: Failed to start Modbus RTU client");
     while (1) delay(1000);
