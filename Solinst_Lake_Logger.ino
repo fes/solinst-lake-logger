@@ -10,6 +10,7 @@ void setup() {
 
   loadRuntimeConfig();
   printRuntimeConfigSummary();
+  initPowerMonitors();
 
   if (!ModbusRTUClient.begin(WLTS_BAUD, WLTS_SERIAL_CFG)) {
     Serial.println("ERROR: Failed to start Modbus RTU client");
@@ -67,6 +68,17 @@ void loop() {
       Serial.print(r.temperature, 3);
       Serial.print(" ");
       Serial.println(TEMP_UNITS);
+
+      if (r.batteryOutput.valid) {
+        Serial.print("Battery output current: ");
+        Serial.print(r.batteryOutput.currentA, 3);
+        Serial.println(" A");
+      }
+      if (r.solarInput.valid) {
+        Serial.print("Solar input current: ");
+        Serial.print(r.solarInput.currentA, 3);
+        Serial.println(" A");
+      }
 
       if (!postReadingWithRetry(r)) {
         if (!enqueueReading(r)) {
