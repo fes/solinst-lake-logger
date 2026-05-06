@@ -9,6 +9,7 @@
 #include <math.h>
 #include <time.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "BlockDevice.h"
 #include "MBRBlockDevice.h"
