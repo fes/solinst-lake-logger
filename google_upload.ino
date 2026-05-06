@@ -8,6 +8,31 @@ String makePayload(const ProbeReading &r) {
   payload += "\"firmware\":\"" + String(detectedIdentity.fwMajor) + "." + String(detectedIdentity.fwMinor) + "\",";
   payload += "\"water_level_m\":" + String(r.level, 4) + ",";
   payload += "\"temperature_c\":" + String(r.temperature, 3) + ",";
+
+  payload += "\"battery_output_monitor_present\":" + String(r.batteryOutput.present ? "true" : "false") + ",";
+  payload += "\"battery_output_monitor_valid\":" + String(r.batteryOutput.valid ? "true" : "false") + ",";
+  payload += "\"battery_output_voltage_v\":";
+  payload += (r.batteryOutput.valid ? String(r.batteryOutput.busVoltageV, 3) : String("null"));
+  payload += ",";
+  payload += "\"battery_output_current_a\":";
+  payload += (r.batteryOutput.valid ? String(r.batteryOutput.currentA, 4) : String("null"));
+  payload += ",";
+  payload += "\"battery_output_power_w\":";
+  payload += (r.batteryOutput.valid ? String(r.batteryOutput.powerW, 4) : String("null"));
+  payload += ",";
+
+  payload += "\"solar_input_monitor_present\":" + String(r.solarInput.present ? "true" : "false") + ",";
+  payload += "\"solar_input_monitor_valid\":" + String(r.solarInput.valid ? "true" : "false") + ",";
+  payload += "\"solar_input_voltage_v\":";
+  payload += (r.solarInput.valid ? String(r.solarInput.busVoltageV, 3) : String("null"));
+  payload += ",";
+  payload += "\"solar_input_current_a\":";
+  payload += (r.solarInput.valid ? String(r.solarInput.currentA, 4) : String("null"));
+  payload += ",";
+  payload += "\"solar_input_power_w\":";
+  payload += (r.solarInput.valid ? String(r.solarInput.powerW, 4) : String("null"));
+  payload += ",";
+
   payload += "\"status\":\"OK\"";
   payload += "}";
   return payload;
