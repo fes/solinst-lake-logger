@@ -93,6 +93,10 @@ bool readLevelAndTemperature(uint8_t slaveId, ProbeReading &reading) {
   reading.timestampUtc = nowUtcString();
   reading.valid = isfinite(reading.level) && isfinite(reading.temperature) && reading.timestampUtc.length() > 0;
 
+  if (reading.valid) {
+    readPowerMonitors(reading);
+  }
+
   return reading.valid;
 }
 
