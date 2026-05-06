@@ -1,3 +1,5 @@
+#pragma once
+
 #include <ArduinoRS485.h>
 #include <ArduinoModbus.h>
 #include <ArduinoHttpClient.h>
@@ -6,21 +8,30 @@
 #include <NTPClient.h>
 #include <math.h>
 #include <time.h>
+#include <stdio.h>
+
+#include "BlockDevice.h"
+#include "MBRBlockDevice.h"
+#include "LittleFileSystem.h"
+#include "FATFileSystem.h"
 
 // ============================================================
-// User configuration
+// User configuration defaults
+//
+// These values are used only as placeholders/fallbacks. At startup,
+// loadRuntimeConfig() will try to read /user/config.ini from the Opta
+// QSPI user-data partition and override them.
 // ============================================================
-const char* WIFI_SSID = "YOUR_WIFI_SSID";
-const char* WIFI_PASS = "YOUR_WIFI_PASSWORD";
-
-const char* DEVICE_ID = "opta-well-01";
-const char* SHARED_SECRET = "PUT_A_LONG_RANDOM_SECRET_HERE";
+char WIFI_SSID[64] = "YOUR_WIFI_SSID";
+char WIFI_PASS[64] = "YOUR_WIFI_PASSWORD";
+char DEVICE_ID[64] = "opta-well-01";
+char SHARED_SECRET[128] = "PUT_A_LONG_RANDOM_SECRET_HERE";
 
 // Google Apps Script Web App:
 // https://script.google.com/macros/s/DEPLOYMENT_ID/exec
 const char* POST_HOST = "script.google.com";
 const int   POST_PORT = 443;
-const char* POST_PATH = "/macros/s/PUT_YOUR_DEPLOYMENT_ID_HERE/exec";
+char POST_PATH[256] = "/macros/s/PUT_YOUR_DEPLOYMENT_ID_HERE/exec";
 
 // Local HTTP server port
 constexpr uint16_t HTTP_PORT = 80;
@@ -115,6 +126,18 @@ int lastLoggedTmYDay = -1;
 int lastLoggedTmHour = -1;
 int lastLoggedTmMin  = -1;
 
+// Runtime config / user-data filesystem state
+mbed::BlockDevice* qspiRoot = mbed::BlockDevice::get_default_instance();
+mbed::MBRBlockDevice user_data_p4(qspiRoot, 4);
+mbed::MBRBlockDevice user_data_p3(qspiRoot, 3);
+mbed::LittleFileSystem user_lfs("user");
+mbed::FATFileSystem user_fatfs("user");
+mbed::FileSystem* user_fs = nullptr;
+bool userFsMounted = false;
+String userFsType = "unmounted";
+int userFsPartition = -1;
+String configLoadStatus = "not attempted";
+
 // ============================================================
 // Prototypes
 // ============================================================
@@ -155,3 +178,7 @@ void sendHttpJson(WiFiClient &client, int statusCode, const String &body);
 String probeJson(const ProbeReading &r);
 String statusJson();
 void handleHttpClient();
+
+bool mountUserFileSystem();
+bool loadRuntimeConfig();
+void printRuntimeConfigSummary();
