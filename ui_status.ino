@@ -130,6 +130,23 @@ void handleUserButton() {
     return;
   }
 
-  // Reserved for future display control. No action for now.
-  (void)digitalRead(USER_BUTTON_PIN);
+  static bool lastPhysicalPressed = false;
+  static bool debouncedPressed = false;
+  static unsigned long lastChangeMs = 0;
+  bool physicalPressed = (digitalRead(USER_BUTTON_PIN) == LOW);
+  unsigned long nowMs = millis();
+
+  if (physicalPressed != lastPhysicalPressed) {
+    lastPhysicalPressed = physicalPressed;
+    lastChangeMs = nowMs;
+  }
+
+  if ((nowMs - lastChangeMs) < 30UL) return;
+
+  if (physicalPressed != debouncedPressed) {
+    debouncedPressed = physicalPressed;
+    if (debouncedPressed) {
+      wakeDisplayForTimeout();
+    }
+  }
 }
