@@ -1,12 +1,16 @@
 namespace {
 
+bool i2cDevicePresent(uint8_t address) {
+  Wire.beginTransmission(address);
+  return Wire.endTransmission() == 0;
+}
+
 void drawDisplayScreen(const ProbeReading &snapshot) {
   float batteryPct = approximateBatteryChargePercent(snapshot);
   bool charging = solarChargingBatteryNow(snapshot);
 
   display.clearBuffer();
   display.setFont(u8g2_font_6x12_tf);
-
   display.drawStr(0, 10, DEVICE_ID);
 
   char line[64];
@@ -56,10 +60,21 @@ ProbeReading currentDisplaySnapshot() {
 
 bool initDisplay() {
   Wire.begin();
+
+  if (!i2cDevicePresent(DISPLAY_I2C_ADDRESS)) {
+    displayPresent = false;
+    displayAwake = false;
+    displayWakeUntilMs = 0;
+    Serial.print("SSD1309 display not detected at 0x");
+    Serial.println(DISPLAY_I2C_ADDRESS, HEX);
+    return false;
+  }
+
   display.setI2CAddress(DISPLAY_I2C_ADDRESS << 1);
   display.begin();
   display.setPowerSave(1);
-  display.clearDisplay();
+  display.clearBuffer();
+  display.sendBuffer();
   displayPresent = true;
   displayAwake = false;
   displayWakeUntilMs = 0;
@@ -69,6 +84,7 @@ bool initDisplay() {
 
 void wakeDisplayForTimeout() {
   if (!displayPresent) return;
+
   displayWakeUntilMs = millis() + (displayOnSeconds * 1000UL);
   if (!displayAwake) {
     display.setPowerSave(0);
@@ -78,16 +94,22 @@ void wakeDisplayForTimeout() {
 }
 
 void updateDisplay() {
-  if (!displayPresent) return;
+  static unsigned long lastRefreshMs = 0;
 
-  unsigned long nowMs = millis();
+  if (!displayPresent) return;
   if (!displayAwake) return;
 
+  unsigned long nowMs = millis();
   if ((long)(displayWakeUntilMs - nowMs) <= 0) {
     sleepDisplay();
     return;
   }
 
+  if ((nowMs - lastRefreshMs) < DISPLAY_REFRESH_INTERVAL_MS) {
+    return;
+  }
+
+  lastRefreshMs = nowMs;
   drawDisplayScreen(currentDisplaySnapshot());
 }
 
