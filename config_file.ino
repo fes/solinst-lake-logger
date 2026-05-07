@@ -66,11 +66,8 @@ bool mountUserFileSystem() {
     return false;
   }
 
-  // Try the current documented default first: partition 4 user data.
   if (tryMountFs(user_lfs, user_data_p4, "LittleFS", 4)) return true;
   if (tryMountFs(user_fatfs, user_data_p4, "FatFS", 4)) return true;
-
-  // Fallback for older/custom partition layouts that may have used partition 3.
   if (tryMountFs(user_lfs, user_data_p3, "LittleFS", 3)) return true;
   if (tryMountFs(user_fatfs, user_data_p3, "FatFS", 3)) return true;
 
@@ -131,6 +128,12 @@ bool loadRuntimeConfig() {
     } else if (key.equalsIgnoreCase("POST_PATH") || key.equalsIgnoreCase("POST_DEPLOYMENT_ID") || key.equalsIgnoreCase("DEPLOYMENT_ID")) {
       setConfigValue(POST_DEPLOYMENT_ID, sizeof(POST_DEPLOYMENT_ID), value);
       loadedKeys++;
+    } else if (key.equalsIgnoreCase("DISPLAY_ON_SECONDS")) {
+      unsigned long parsed = strtoul(value.c_str(), nullptr, 10);
+      if (parsed > 0) {
+        displayOnSeconds = parsed;
+      }
+      loadedKeys++;
     }
   }
 
@@ -168,4 +171,6 @@ void printRuntimeConfigSummary() {
   Serial.println(maskedPreview(POST_DEPLOYMENT_ID, "PUT_YOUR_DEPLOYMENT_ID_HERE"));
   Serial.print("  POST_PATH: ");
   Serial.println(POST_PATH);
+  Serial.print("  DISPLAY_ON_SECONDS: ");
+  Serial.println(displayOnSeconds);
 }
