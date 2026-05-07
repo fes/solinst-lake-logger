@@ -52,6 +52,8 @@ bool postReadingWithRetry(const ProbeReading &r) {
     return false;
   }
 
+  lastUploadAttemptMs = millis();
+
   for (int attempt = 1; attempt <= POST_RETRIES; attempt++) {
     if (postJson(makePayload(r))) {
       lastSuccessfulUploadUtc = nowUtcString();
