@@ -48,6 +48,7 @@ constexpr unsigned long NTP_RESYNC_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
 constexpr int LOG_INTERVAL_MINUTES = 15;
 constexpr int LOG_BOUNDARY_WINDOW_SECONDS = 5;
 constexpr unsigned long DISPLAY_ON_SECONDS_DEFAULT = 15UL;
+constexpr unsigned long DISPLAY_REFRESH_INTERVAL_MS = 500UL;
 
 // Solinst defaults
 constexpr uint32_t WLTS_BAUD = 19200;
