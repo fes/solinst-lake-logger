@@ -8,6 +8,7 @@
 #include <NTPClient.h>
 #include <Wire.h>
 #include <Adafruit_INA228.h>
+#include <U8g2lib.h>
 #include <math.h>
 #include <time.h>
 #include <stdio.h>
@@ -46,6 +47,7 @@ constexpr uint16_t HTTP_PORT = 80;
 constexpr unsigned long NTP_RESYNC_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
 constexpr int LOG_INTERVAL_MINUTES = 15;
 constexpr int LOG_BOUNDARY_WINDOW_SECONDS = 5;
+constexpr unsigned long DISPLAY_ON_SECONDS_DEFAULT = 15UL;
 
 // Solinst defaults
 constexpr uint32_t WLTS_BAUD = 19200;
@@ -78,6 +80,9 @@ constexpr uint8_t INA228_BATTERY_OUTPUT_ADDR = 0x40;
 constexpr uint8_t INA228_SOLAR_INPUT_ADDR    = 0x41;
 constexpr float   INA228_SHUNT_OHMS          = 0.015f;
 constexpr float   INA228_MAX_CURRENT_AMPS    = 10.0f;
+
+// SSD1309 display defaults (2.42 inch 128x64, I2C)
+constexpr uint8_t DISPLAY_I2C_ADDRESS = 0x3C;
 
 const char* LEVEL_UNITS = "m";
 const char* TEMP_UNITS  = "C";
@@ -123,6 +128,12 @@ Adafruit_INA228 solarInputMonitor;
 bool batteryOutputMonitorPresent = false;
 bool solarInputMonitorPresent = false;
 String powerMonitorInitStatus = "not initialized";
+
+U8G2_SSD1309_128X64_NONAME0_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE);
+bool displayPresent = false;
+bool displayAwake = false;
+unsigned long displayOnSeconds = DISPLAY_ON_SECONDS_DEFAULT;
+unsigned long displayWakeUntilMs = 0;
 
 constexpr size_t BACKLOG_CAPACITY = 32;
 ProbeReading backlog[BACKLOG_CAPACITY];
@@ -227,3 +238,8 @@ void printRuntimeConfigSummary();
 void initUserInterface();
 void updateUserInterface();
 void handleUserButton();
+
+bool initDisplay();
+void wakeDisplayForTimeout();
+void updateDisplay();
+void sleepDisplay();
