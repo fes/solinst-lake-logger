@@ -13,11 +13,13 @@ void setup() {
   loadRuntimeConfig();
   printRuntimeConfigSummary();
   initPowerMonitors();
+  initDisplay();
 
   if (!ModbusRTUClient.begin(WLTS_BAUD, WLTS_SERIAL_CFG)) {
     Serial.println("ERROR: Failed to start Modbus RTU client");
     while (1) {
       updateUserInterface();
+      updateDisplay();
       delay(25);
     }
   }
@@ -59,6 +61,7 @@ void loop() {
 
     flushBacklogOnce();
     updateUserInterface();
+    updateDisplay();
     delay(10);
     return;
   }
@@ -69,6 +72,7 @@ void loop() {
 
   flushBacklogOnce();
   updateUserInterface();
+  updateDisplay();
 
   delay(10);
 }
