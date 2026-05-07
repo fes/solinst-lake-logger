@@ -101,6 +101,8 @@ bool readLevelAndTemperature(uint8_t slaveId, ProbeReading &reading) {
 }
 
 bool probeNow(ProbeReading &reading) {
+  lastProbeAttemptMs = millis();
+
   if (detectedSensorId == 0) {
     failedProbeReads++;
     return false;
