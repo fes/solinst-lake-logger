@@ -50,14 +50,6 @@ void loop() {
 
   maintainClockSync();
 
-  if (manualProbeRequested) {
-    manualProbeRequested = false;
-    if (!isClockValid()) {
-      syncClockFromNtp();
-    }
-    performProbeAndUpload("manual button press");
-  }
-
   if (!isClockValid()) {
     static unsigned long lastClockWarningMs = 0;
     if (millis() - lastClockWarningMs > 10000UL) {
