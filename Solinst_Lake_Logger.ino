@@ -8,13 +8,18 @@ void setup() {
   Serial.println();
   Serial.println("Starting Opta + Solinst 301 + Google Sheets logger + HTTP API");
 
+  initUserInterface();
+
   loadRuntimeConfig();
   printRuntimeConfigSummary();
   initPowerMonitors();
 
   if (!ModbusRTUClient.begin(WLTS_BAUD, WLTS_SERIAL_CFG)) {
     Serial.println("ERROR: Failed to start Modbus RTU client");
-    while (1) delay(1000);
+    while (1) {
+      updateUserInterface();
+      delay(25);
+    }
   }
 
   if (scanForSensor(SCAN_START_ID, SCAN_END_ID, detectedSensorId, detectedIdentity)) {
@@ -36,6 +41,7 @@ void setup() {
 }
 
 void loop() {
+  handleUserButton();
   handleHttpClient();
 
   if (WiFi.status() != WL_CONNECTED) {
@@ -43,6 +49,14 @@ void loop() {
   }
 
   maintainClockSync();
+
+  if (manualProbeRequested) {
+    manualProbeRequested = false;
+    if (!isClockValid()) {
+      syncClockFromNtp();
+    }
+    performProbeAndUpload("manual button press");
+  }
 
   if (!isClockValid()) {
     static unsigned long lastClockWarningMs = 0;
@@ -52,52 +66,17 @@ void loop() {
     }
 
     flushBacklogOnce();
+    updateUserInterface();
     delay(10);
     return;
   }
 
   if (detectedSensorId != 0 && shouldLogNow()) {
-    ProbeReading r;
-    if (probeNow(r)) {
-      Serial.print("Water level: ");
-      Serial.print(r.level, 4);
-      Serial.print(" ");
-      Serial.println(LEVEL_UNITS);
-
-      Serial.print("Temperature: ");
-      Serial.print(r.temperature, 3);
-      Serial.print(" ");
-      Serial.println(TEMP_UNITS);
-
-      if (r.batteryOutput.valid) {
-        Serial.print("Battery output current: ");
-        Serial.print(r.batteryOutput.currentA, 3);
-        Serial.println(" A");
-      }
-      if (r.solarInput.valid) {
-        Serial.print("Solar input current: ");
-        Serial.print(r.solarInput.currentA, 3);
-        Serial.println(" A");
-      }
-
-      if (!postReadingWithRetry(r)) {
-        if (!enqueueReading(r)) {
-          droppedBacklogEntries++;
-          Serial.println("Backlog full; dropping reading");
-        } else {
-          Serial.println("Queued reading in backlog");
-        }
-      } else {
-        Serial.println("Posted reading to Google Sheets");
-      }
-    } else {
-      Serial.println("Measurement read failed after retries");
-    }
-
-    Serial.println("---");
+    performProbeAndUpload("scheduled interval");
   }
 
   flushBacklogOnce();
+  updateUserInterface();
 
   delay(10);
 }
