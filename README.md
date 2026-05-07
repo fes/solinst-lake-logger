@@ -10,6 +10,7 @@ A field logger for an **Arduino Opta WiFi** that:
 - reads two **INA228** I2C power monitors:
   - **battery output** monitor at **0x40**
   - **solar input** monitor at **0x41**
+- uses the Opta status LEDs and user button for field diagnostics and manual actions
 
 The logger currently uploads:
 
@@ -32,7 +33,10 @@ The logger currently uploads:
 - `backlog.ino` - upload backlog queue
 - `time_sync.ino` - Wi-Fi and NTP time sync
 - `probe_modbus.ino` - Solinst Modbus reads
+- `probe_cycle.ino` - shared probe + upload flow
 - `power_monitors.ino` - INA228 initialization and reads
+- `battery_status.ino` - shared battery estimate / charging status helpers
+- `ui_status.ino` - Opta LED and button behavior
 - `google_upload.ino` - JSON payload generation and upload
 - `http_api.ino` - local HTTP handlers
 - `google_apps_script.gs` - Google Apps Script endpoint for Sheets logging
@@ -75,6 +79,50 @@ Those addresses are defined in `config.h`.
 
 ---
 
+## Opta LEDs and user button
+
+The sketch includes a practical field UI using the Opta status LEDs and user button.
+
+### LED roles
+
+If the board core exposes the expected Opta LED pin aliases, the sketch uses four LEDs as follows:
+
+- **LED 1** - heartbeat / main loop alive
+- **LED 2** - Solinst sensor / Modbus state
+- **LED 3** - Wi-Fi / upload state
+- **LED 4** - power / charging state
+
+### LED behavior summary
+
+- **Heartbeat LED**
+  - brief periodic pulse while the main loop is running
+
+- **Sensor LED**
+  - slow blink: no Solinst sensor found yet
+  - solid on: sensor found and recent reads are succeeding
+  - fast blink: recent probe attempt failed
+
+- **Network LED**
+  - slow blink: Wi-Fi disconnected / reconnecting
+  - solid on: Wi-Fi connected and no obvious backlog condition
+  - activity/fault patterns may be extended further as upload attempt tracking evolves
+
+- **Power LED**
+  - solid on: solar appears to be charging the battery
+  - warning blink: battery estimate is low
+  - double-pulse style warning: neither INA228 monitor appears valid
+
+### User button behavior
+
+If the board core exposes the expected user-button alias:
+
+- **short press** - request an immediate probe + upload
+- **long press (~3 seconds)** - reboot the Opta
+
+If the core does **not** expose the expected LED/button pin aliases, the UI logic compiles in a no-op mode and the logger still runs normally.
+
+---
+
 ## Required Arduino libraries
 
 Install these in **Arduino IDE** using Library Manager:
@@ -97,6 +145,8 @@ Built-in/core libraries also used:
 ## Board package
 
 Install the correct **Arduino Opta / Mbed OS** board package in Arduino IDE and select the **Arduino Opta WiFi** board before compiling.
+
+Because Opta core releases can change pin alias naming, if the LED/button UI does not compile or does not activate, verify the installed core version and the available LED/button pin aliases for your Opta board package.
 
 ---
 
@@ -290,6 +340,7 @@ The Opta exposes these endpoints over its local web server:
 - The logger runs on **even 15-minute UTC boundaries**.
 - The system waits until the clock is valid before scheduled logging begins.
 - If an upload fails, the reading is queued in a small in-memory backlog and retried later.
+- A short press of the Opta user button can trigger an immediate manual reading/upload when the button alias is available in the installed board core.
 
 ---
 
@@ -299,6 +350,8 @@ The Opta exposes these endpoints over its local web server:
 - The battery charge percentage is an **approximation**, not a true state-of-charge algorithm.
 - The code assumes the **Adafruit INA228** Arduino library API.
 - The code assumes you have physical access to the Opta I2C bus for the INA228 boards.
+- The INA228 current/power calibration depends on the actual shunt value on your monitor boards.
+- The Opta LED/button UI depends on the board core exposing compatible LED and button pin aliases.
 
 ---
 
@@ -312,6 +365,7 @@ The Opta exposes these endpoints over its local web server:
 6. Confirm Wi-Fi connects.
 7. Confirm the Apps Script web app responds.
 8. Confirm data appears in the correct yearly tab in Google Sheets.
+9. Confirm LED/button behavior matches the expected field UI.
 
 ---
 
