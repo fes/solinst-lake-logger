@@ -169,8 +169,6 @@ int userFsPartition = -1;
 String configLoadStatus = "not attempted";
 String configSource = "defaults";
 
-bool manualProbeRequested = false;
-
 // ============================================================
 // Prototypes
 // ============================================================
