@@ -130,39 +130,6 @@ void handleUserButton() {
     return;
   }
 
-  static bool lastPhysicalPressed = false;
-  static bool debouncedPressed = false;
-  static unsigned long lastChangeMs = 0;
-  static unsigned long pressStartMs = 0;
-
-  bool physicalPressed = (digitalRead(USER_BUTTON_PIN) == LOW);
-  unsigned long nowMs = millis();
-
-  if (physicalPressed != lastPhysicalPressed) {
-    lastPhysicalPressed = physicalPressed;
-    lastChangeMs = nowMs;
-  }
-
-  if ((nowMs - lastChangeMs) < 30UL) {
-    return;
-  }
-
-  if (physicalPressed != debouncedPressed) {
-    debouncedPressed = physicalPressed;
-
-    if (debouncedPressed) {
-      pressStartMs = nowMs;
-    } else {
-      unsigned long heldMs = nowMs - pressStartMs;
-
-      if (heldMs >= 3000UL) {
-        Serial.println("User button long press -> rebooting");
-        delay(50);
-        NVIC_SystemReset();
-      } else if (heldMs >= 50UL) {
-        manualProbeRequested = true;
-        Serial.println("User button short press -> manual probe requested");
-      }
-    }
-  }
+  // Reserved for future display control. No action for now.
+  (void)digitalRead(USER_BUTTON_PIN);
 }
