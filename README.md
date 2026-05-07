@@ -10,7 +10,8 @@ A field logger for an **Arduino Opta WiFi** that:
 - reads two **INA228** I2C power monitors:
   - **battery output** monitor at **0x40**
   - **solar input** monitor at **0x41**
-- uses the Opta status LEDs and user button for field diagnostics and manual actions
+- uses the Opta status LEDs for field diagnostics
+- supports a **2.42 inch SSD1309 I2C OLED** local status display that wakes on user-button press and turns back off after a configurable timeout
 
 The logger currently uploads:
 
@@ -36,7 +37,8 @@ The logger currently uploads:
 - `probe_cycle.ino` - shared probe + upload flow
 - `power_monitors.ino` - INA228 initialization and reads
 - `battery_status.ino` - shared battery estimate / charging status helpers
-- `ui_status.ino` - Opta LED and button behavior
+- `ui_status.ino` - Opta LED behavior and user-button handling
+- `display_oled.ino` - SSD1309 OLED init / wake / timeout / redraw logic
 - `google_upload.ino` - JSON payload generation and upload
 - `http_api.ino` - local HTTP handlers
 - `google_apps_script.gs` - Google Apps Script endpoint for Sheets logging
@@ -53,6 +55,7 @@ This project is written for:
 - **2x INA228** boards on I2C
   - battery output monitor at `0x40`
   - solar input monitor at `0x41`
+- **2.42 inch SSD1309 128x64 I2C OLED** display
 - **12 V LiFePO4** battery system with solar charge controller
 
 ### INA228 addressing
@@ -69,6 +72,18 @@ Those addresses are defined in `config.h`.
 - **battery output monitor** measures the positive feed from the battery/system bus into the logger/load branch
 - **solar input monitor** measures the positive feed from the solar charge controller into the battery side
 
+### OLED display assumptions
+
+The display code currently assumes:
+
+- **SSD1309 controller**
+- **128x64** resolution
+- **I2C mode**
+- default I2C address **`0x3C`**
+- U8g2 constructor `U8G2_SSD1309_128X64_NONAME0_F_HW_I2C`
+
+If your display is strapped for a different I2C address, update the value in `config.h`.
+
 ### Battery charge estimate
 
 `battery_charge_level_pct_approx` is a **rough voltage-based LiFePO4 estimate only**. It is useful for quick visibility, but it is **not** a true coulomb-counted state of charge.
@@ -79,9 +94,9 @@ Those addresses are defined in `config.h`.
 
 ---
 
-## Opta LEDs and user button
+## Opta LEDs, user button, and display
 
-The sketch includes a practical field UI using the Opta status LEDs and user button.
+The sketch includes a practical field UI using the Opta status LEDs and the user button.
 
 ### LED roles
 
@@ -116,8 +131,20 @@ If the board core exposes the expected Opta LED pin aliases, the sketch uses fou
 
 If the board core exposes the expected user-button alias:
 
-- **short press** - request an immediate probe + upload
-- **long press (~3 seconds)** - reboot the Opta
+- **button press** - wake the OLED display
+- the display stays on for a configurable number of seconds
+- when the timeout expires, the display returns to power-save mode
+
+### Display behavior
+
+The OLED is initialized in **power-save mode**. When the user presses the Opta button:
+
+- the display wakes
+- the current snapshot is drawn
+- the display remains on until the configured timeout expires
+- the display is then blanked and returned to power-save mode
+
+Important: this is **software display sleep / power-save**, not true hardware power disconnection. The display appears off to the user, but it is not physically disconnected from power.
 
 If the core does **not** expose the expected LED/button pin aliases, the UI logic compiles in a no-op mode and the logger still runs normally.
 
@@ -132,6 +159,7 @@ Install these in **Arduino IDE** using Library Manager:
 - `ArduinoHttpClient`
 - `NTPClient`
 - `Adafruit INA228`
+- `U8g2`
 
 Built-in/core libraries also used:
 
@@ -183,6 +211,7 @@ The loader reads these keys:
 - `DEVICE_ID`
 - `SHARED_SECRET`
 - `DEPLOYMENT_ID`
+- `DISPLAY_ON_SECONDS`
 
 For backward compatibility it also accepts:
 
@@ -203,6 +232,7 @@ WIFI_PASS=your-password
 DEVICE_ID=opta-well-01
 SHARED_SECRET=your-long-random-secret
 DEPLOYMENT_ID=AKfycbxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+DISPLAY_ON_SECONDS=15
 ```
 
 The code builds the Apps Script path automatically as:
@@ -240,6 +270,7 @@ On boot, the serial console prints a runtime config summary including:
 - partition used
 - whether config values came from `config.ini` or defaults
 - a masked self-test of the loaded secret values
+- the active display timeout in seconds
 
 ---
 
@@ -340,7 +371,8 @@ The Opta exposes these endpoints over its local web server:
 - The logger runs on **even 15-minute UTC boundaries**.
 - The system waits until the clock is valid before scheduled logging begins.
 - If an upload fails, the reading is queued in a small in-memory backlog and retried later.
-- A short press of the Opta user button can trigger an immediate manual reading/upload when the button alias is available in the installed board core.
+- The OLED display remains in power-save mode until the user presses the Opta button.
+- Once woken, the display remains on for `DISPLAY_ON_SECONDS` and then returns to power-save mode.
 
 ---
 
@@ -349,9 +381,10 @@ The Opta exposes these endpoints over its local web server:
 - The Solinst 301 is expected to already be configured for **Modbus RTU** with matching serial settings.
 - The battery charge percentage is an **approximation**, not a true state-of-charge algorithm.
 - The code assumes the **Adafruit INA228** Arduino library API.
-- The code assumes you have physical access to the Opta I2C bus for the INA228 boards.
+- The code assumes you have physical access to the Opta I2C bus for the INA228 boards and OLED.
 - The INA228 current/power calibration depends on the actual shunt value on your monitor boards.
 - The Opta LED/button UI depends on the board core exposing compatible LED and button pin aliases.
+- The OLED "off" behavior is software power-save, not physical power removal.
 
 ---
 
@@ -361,11 +394,13 @@ The Opta exposes these endpoints over its local web server:
 2. Confirm serial output appears at boot.
 3. Confirm runtime config is loaded from `/user/config.ini`.
 4. Confirm both INA228 devices are detected at `0x40` and `0x41`.
-5. Confirm the Solinst 301 responds on Modbus.
-6. Confirm Wi-Fi connects.
-7. Confirm the Apps Script web app responds.
-8. Confirm data appears in the correct yearly tab in Google Sheets.
-9. Confirm LED/button behavior matches the expected field UI.
+5. Confirm the SSD1309 OLED is detected and can wake on button press.
+6. Confirm the Solinst 301 responds on Modbus.
+7. Confirm Wi-Fi connects.
+8. Confirm the Apps Script web app responds.
+9. Confirm data appears in the correct yearly tab in Google Sheets.
+10. Confirm LED behavior matches the expected field UI.
+11. Confirm the display turns off again after the configured timeout.
 
 ---
 
@@ -383,6 +418,7 @@ Possible next steps:
 
 - true coulomb-counted battery SOC
 - richer `/probe` output including INA228 fields
+- true switched-power control for the display instead of software power-save
 - better persistent backlog storage
 - OTA update path
 - more robust error classification for Solinst and upload failures
