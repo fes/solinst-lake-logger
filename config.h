@@ -138,6 +138,8 @@ unsigned long bootMs = 0;
 unsigned long lastNtpSyncMs = 0;
 unsigned long lastSuccessfulProbeReadMs = 0;
 unsigned long lastSuccessfulUploadMs = 0;
+unsigned long lastProbeAttemptMs = 0;
+unsigned long lastUploadAttemptMs = 0;
 
 String lastSuccessfulProbeReadUtc = "";
 String lastSuccessfulUploadUtc = "";
@@ -167,6 +169,8 @@ int userFsPartition = -1;
 String configLoadStatus = "not attempted";
 String configSource = "defaults";
 
+bool manualProbeRequested = false;
+
 // ============================================================
 // Prototypes
 // ============================================================
@@ -192,6 +196,10 @@ bool initPowerMonitors();
 void readPowerMonitors(ProbeReading &reading);
 void printPowerMonitorSummary();
 
+float approximateBatteryChargePercent(const ProbeReading &reading);
+bool solarChargingBatteryNow(const ProbeReading &reading);
+void appendPowerMonitorJson(String &body, const char *prefix, const PowerMonitorSnapshot &snapshot);
+
 bool readInputRegister(uint8_t slaveId, uint16_t reg, uint16_t &value);
 bool readInputRegisterWithRetry(uint8_t slaveId, uint16_t reg, uint16_t &value);
 bool readRegisterPairWithRetry(uint8_t slaveId, uint16_t regHi, uint16_t regLo, uint16_t &hi, uint16_t &lo);
@@ -206,6 +214,7 @@ String makePayload(const ProbeReading &r);
 bool postJson(const String &payload);
 bool postReadingWithRetry(const ProbeReading &r);
 void flushBacklogOnce();
+bool performProbeAndUpload(const char *reason);
 
 void sendHttpJson(WiFiClient &client, int statusCode, const String &body);
 String probeJson(const ProbeReading &r);
@@ -216,3 +225,7 @@ bool mountUserFileSystem();
 void buildPostPath();
 bool loadRuntimeConfig();
 void printRuntimeConfigSummary();
+
+void initUserInterface();
+void updateUserInterface();
+void handleUserButton();
