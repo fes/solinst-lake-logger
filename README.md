@@ -247,20 +247,199 @@ The code builds the Apps Script path automatically as:
 
 You need a writable **user-data filesystem** on the Opta QSPI flash.
 
-The code will attempt to mount:
+The logger now attempts to mount only:
 
-- partition 4 first
-- then partition 3 as a fallback
+- **LittleFS on partition 4**
+- then **FatFS on partition 4**
 
-and it will try both:
+If the QSPI partition table or filesystem has not already been created on your board, you will need to create/format it first.
 
-- `LittleFS`
-- `FatFS`
+### Why formatting may be required
 
-Once the user partition exists and is formatted, place your runtime config file at:
+A fresh Opta may not already have the expected QSPI partition layout and user-data filesystem in place. In that case, runtime mounting of `/user/config.ini` will fail until the QSPI flash is partitioned and partition 4 is formatted.
+
+### Recommended approach
+
+Arduino provides a broader Opta QSPI formatting sketch that repartitions the whole QSPI flash and can also restore Wi-Fi-related content. The simplified sketch below is derived from that Arduino example, but removes the Wi-Fi firmware/certificate restore pieces and focuses on creating the partition table plus formatting the user-data partition. If you need the original source, start from Arduino's Opta QSPI formatting example and use this version as the minimal user-data-oriented variant.
+
+### Simplified partition-and-format sketch
+
+Upload this sketch to the **M7 core** of the Opta. It creates the standard partition layout and formats **partition 4** for user data.
+
+```cpp
+#include "BlockDevice.h"
+#include "MBRBlockDevice.h"
+#include "LittleFileSystem.h"
+#include "FATFileSystem.h"
+
+#ifndef CORE_CM7
+  #error Format QSPI flash by uploading the sketch to the M7 core instead of the M4 core.
+#endif
+
+using namespace mbed;
+
+BlockDevice* root = BlockDevice::get_default_instance();
+MBRBlockDevice wifi_data(root, 1);
+MBRBlockDevice ota_data(root, 2);
+MBRBlockDevice kvstore_data(root, 3);
+MBRBlockDevice user_data(root, 4);
+FATFileSystem wifi_data_fs("wlan");
+FATFileSystem ota_data_fs("fs");
+FileSystem* user_data_fs = nullptr;
+
+bool waitResponse() {
+  while (true) {
+    if (Serial.available()) {
+      char choice = Serial.read();
+      switch (choice) {
+        case 'y':
+        case 'Y':
+          return true;
+        case 'n':
+        case 'N':
+          return false;
+        default:
+          break;
+      }
+    }
+  }
+}
+
+void setup() {
+  Serial.begin(115200);
+  while (!Serial) {}
+
+  Serial.println();
+  Serial.println("WARNING: This will repartition QSPI flash.");
+  Serial.println("Partition 1: WiFi firmware/certs 1MB");
+  Serial.println("Partition 2: OTA 5MB");
+  Serial.println("Partition 3: KVStore 1MB");
+  Serial.println("Partition 4: User data 7MB");
+  Serial.println("Proceed? Y/[n]");
+
+  if (!waitResponse()) {
+    Serial.println("Cancelled.");
+    return;
+  }
+
+  if (root->init() != BD_ERROR_OK) {
+    Serial.println("ERROR: QSPI init failure.");
+    return;
+  }
+
+  Serial.println("Full erase first? Y/[n]");
+  bool fullErase = waitResponse();
+
+  if (fullErase) {
+    Serial.println("Full erase started...");
+    root->erase(0x0, root->size());
+    Serial.println("Full erase completed.");
+  } else {
+    Serial.println("Erasing MBR sector only...");
+    root->erase(0x0, root->get_erase_size());
+  }
+
+  Serial.println("Creating partition table...");
+  MBRBlockDevice::partition(root, 1, 0x0B, 0,                1 * 1024 * 1024);
+  MBRBlockDevice::partition(root, 2, 0x0B, 1 * 1024 * 1024,  6 * 1024 * 1024);
+  MBRBlockDevice::partition(root, 3, 0x0B, 6 * 1024 * 1024,  7 * 1024 * 1024);
+  MBRBlockDevice::partition(root, 4, 0x0B, 7 * 1024 * 1024, 14 * 1024 * 1024);
+
+  bool reformat = true;
+  if (!wifi_data_fs.mount(&wifi_data)) {
+    Serial.println("Partition 1 already has a filesystem. Reformat? Y/[n]");
+    wifi_data_fs.unmount();
+    reformat = waitResponse();
+  }
+  if (reformat && wifi_data_fs.reformat(&wifi_data)) {
+    Serial.println("ERROR: formatting partition 1 failed");
+    return;
+  }
+
+  reformat = true;
+  if (!ota_data_fs.mount(&ota_data)) {
+    Serial.println("Partition 2 already has a filesystem. Reformat? Y/[n]");
+    ota_data_fs.unmount();
+    reformat = waitResponse();
+  }
+  if (reformat && ota_data_fs.reformat(&ota_data)) {
+    Serial.println("ERROR: formatting partition 2 failed");
+    return;
+  }
+
+  Serial.println("Use LittleFS for partition 4? Y/[n]");
+  Serial.println("If No, FatFS will be used for partition 4.");
+  if (waitResponse()) {
+    Serial.println("Formatting partition 4 as LittleFS...");
+    user_data_fs = new LittleFileSystem("user");
+  } else {
+    Serial.println("Formatting partition 4 as FatFS...");
+    user_data_fs = new FATFileSystem("user");
+  }
+
+  reformat = true;
+  if (!user_data_fs->mount(&user_data)) {
+    Serial.println("Partition 4 already has a filesystem. Reformat? Y/[n]");
+    user_data_fs->unmount();
+    reformat = waitResponse();
+  }
+
+  if (reformat && user_data_fs->reformat(&user_data)) {
+    Serial.println("ERROR: formatting partition 4 failed");
+    return;
+  }
+
+  Serial.println("SUCCESS: QSPI partitioned and partition 4 formatted.");
+  Serial.println("It is now safe to reboot and upload the logger sketch.");
+}
+
+void loop() {
+}
+```
+
+### Recommended answers when running the formatter
+
+For this project, a good default is:
+
+- Proceed: **Y**
+- Full erase: **N** (unless you want to wipe everything intentionally)
+- Use LittleFS for partition 4: **Y**
+
+### After formatting
+
+Once partition 4 is successfully formatted, you need to put your runtime config file at:
 
 ```text
 /user/config.ini
+```
+
+There are two practical ways to do that:
+
+#### Option A: temporarily use compiled-in values
+
+For initial bring-up, you can skip `/user/config.ini` entirely and put your real values directly into `config.h`. The logger will use those built-in defaults if the file is missing.
+
+#### Option B: write `/user/config.ini` onto the filesystem
+
+After formatting, use a small helper sketch that mounts partition 4 and writes `/user/config.ini`.
+
+A simple pattern is:
+
+1. Mount partition 4 as `/user`
+2. Open `/user/config.ini` for write
+3. Write the config text
+4. Close the file
+5. Reboot and run the logger sketch
+
+Example config contents:
+
+```ini
+WIFI_SSID=your-ssid
+WIFI_PASS=your-password
+DEVICE_ID=opta-well-01
+SHARED_SECRET=your-long-random-secret
+DEPLOYMENT_ID=AKfycbxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+DISPLAY_ON_SECONDS=15
 ```
 
 On boot, the serial console prints a runtime config summary including:
@@ -392,15 +571,16 @@ The Opta exposes these endpoints over its local web server:
 
 1. Confirm the Opta sketch compiles.
 2. Confirm serial output appears at boot.
-3. Confirm runtime config is loaded from `/user/config.ini`.
-4. Confirm both INA228 devices are detected at `0x40` and `0x41`.
-5. Confirm the SSD1309 OLED is detected and can wake on button press.
-6. Confirm the Solinst 301 responds on Modbus.
-7. Confirm Wi-Fi connects.
-8. Confirm the Apps Script web app responds.
-9. Confirm data appears in the correct yearly tab in Google Sheets.
-10. Confirm LED behavior matches the expected field UI.
-11. Confirm the display turns off again after the configured timeout.
+3. If needed, partition/format QSPI partition 4 for `/user`.
+4. Confirm runtime config is loaded from `/user/config.ini` or intentionally falls back to compiled defaults.
+5. Confirm both INA228 devices are detected at `0x40` and `0x41`.
+6. Confirm the SSD1309 OLED is detected and can wake on button press.
+7. Confirm the Solinst 301 responds on Modbus.
+8. Confirm Wi-Fi connects.
+9. Confirm the Apps Script web app responds.
+10. Confirm data appears in the correct yearly tab in Google Sheets.
+11. Confirm LED behavior matches the expected field UI.
+12. Confirm the display turns off again after the configured timeout.
 
 ---
 
@@ -419,6 +599,7 @@ Possible next steps:
 - true coulomb-counted battery SOC
 - richer `/probe` output including INA228 fields
 - true switched-power control for the display instead of software power-save
+- helper sketch to write `/user/config.ini` automatically after formatting
 - better persistent backlog storage
 - OTA update path
 - more robust error classification for Solinst and upload failures
