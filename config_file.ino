@@ -30,13 +30,19 @@ void buildPostPath() {
 bool loadRuntimeConfig() {
   buildPostPath();
   configSource = "compiled secrets";
-  configLoadStatus = "using secrets_local.h or secrets_example.h";
-  Serial.println("Config: using compile-time secrets header");
+
+#ifdef ALLOW_PLACEHOLDER_SECRETS
+  configLoadStatus = "using placeholder/example secrets";
+#else
+  configLoadStatus = "using secrets_local.h";
+#endif
+
+  Serial.println("Config: initialized compile-time configuration");
   return true;
 }
 
 void printRuntimeConfigSummary() {
-  Serial.println("Runtime config summary:");
+  Serial.println("Compile-time config summary:");
   Serial.print("  config source: ");
   Serial.println(configSource);
   Serial.print("  config status: ");
