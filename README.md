@@ -28,7 +28,7 @@ The logger currently uploads:
 
 - `Solinst_Lake_Logger.ino` - main setup/loop
 - `config.h` - compile-time defaults, globals, prototypes, monitor addresses
-- `config_file.ino` - compile-time config summary/path builder; runtime config loading is currently disabled by default
+- `config_file.ino` - compile-time config summary and Apps Script path builder
 - `secrets_example.h` - tracked template for local secrets
 - `util.ino` - utility helpers
 - `backlog.ino` - upload backlog queue
@@ -42,7 +42,6 @@ The logger currently uploads:
 - `google_upload.ino` - JSON payload generation and upload
 - `http_api.ino` - local HTTP handlers
 - `google_apps_script.gs` - Google Apps Script endpoint for Sheets logging
-- `config.ini.example` - legacy optional runtime-config example
 
 ---
 
@@ -96,7 +95,7 @@ If your display is strapped for a different I2C address, update the value in `co
 
 ## Recommended configuration workflow
 
-The recommended workflow is now **compile-time local secrets**, not a separate runtime config file.
+The recommended workflow is **compile-time local secrets**.
 
 ### Why
 
@@ -139,7 +138,7 @@ Compile-time local secrets give you:
 
 `config.h` includes `secrets_local.h` if it exists; otherwise it falls back to `secrets_example.h`.
 
-Runtime config loading from `/user/config.ini` is currently **disabled by default**, and the code reports that it is using compile-time secrets.
+`config_file.ino` now only builds the POST path and prints a summary of the compile-time values being used.
 
 ---
 
@@ -239,169 +238,6 @@ Because Opta core releases can change pin alias naming, if the LED/button UI doe
 8. Click **Upload**.
 
 If compilation fails on missing libraries, install them first and restart the IDE if needed.
-
----
-
-## Runtime config / QSPI notes
-
-A legacy runtime-config path using `/user/config.ini` and QSPI partition 4 was explored during development.
-
-### Current state
-
-- The code still retains some runtime-config scaffolding.
-- The default build path now uses **compile-time local secrets**.
-- Runtime loading from `/user/config.ini` is disabled by default.
-
-### When QSPI partitioning may still matter
-
-You may still care about Opta QSPI partitioning if you want to experiment later with:
-
-- runtime config files
-- PLC runtime coexistence
-- other user-data storage on partition 4
-
-### Simplified partition-and-format sketch
-
-A simplified sketch derived from Arduino's broader Opta QSPI formatter was used during development to create the partition table and format partition 4. That Arduino-origin flow repartitions all four partitions and can also restore Wi-Fi-related content; this simplified version focuses on partitioning plus formatting the user-data partition.
-
-Upload this sketch to the **M7 core** of the Opta:
-
-```cpp
-#include "BlockDevice.h"
-#include "MBRBlockDevice.h"
-#include "LittleFileSystem.h"
-#include "FATFileSystem.h"
-
-#ifndef CORE_CM7
-  #error Format QSPI flash by uploading the sketch to the M7 core instead of the M4 core.
-#endif
-
-using namespace mbed;
-
-BlockDevice* root = BlockDevice::get_default_instance();
-MBRBlockDevice wifi_data(root, 1);
-MBRBlockDevice ota_data(root, 2);
-MBRBlockDevice kvstore_data(root, 3);
-MBRBlockDevice user_data(root, 4);
-FATFileSystem wifi_data_fs("wlan");
-FATFileSystem ota_data_fs("fs");
-FileSystem* user_data_fs = nullptr;
-
-bool waitResponse() {
-  while (true) {
-    if (Serial.available()) {
-      char choice = Serial.read();
-      switch (choice) {
-        case 'y':
-        case 'Y':
-          return true;
-        case 'n':
-        case 'N':
-          return false;
-        default:
-          break;
-      }
-    }
-  }
-}
-
-void setup() {
-  Serial.begin(115200);
-  while (!Serial) {}
-
-  Serial.println();
-  Serial.println("WARNING: This will repartition QSPI flash.");
-  Serial.println("Partition 1: WiFi firmware/certs 1MB");
-  Serial.println("Partition 2: OTA 5MB");
-  Serial.println("Partition 3: KVStore 1MB");
-  Serial.println("Partition 4: User data 7MB");
-  Serial.println("Proceed? Y/[n]");
-
-  if (!waitResponse()) {
-    Serial.println("Cancelled.");
-    return;
-  }
-
-  if (root->init() != BD_ERROR_OK) {
-    Serial.println("ERROR: QSPI init failure.");
-    return;
-  }
-
-  Serial.println("Full erase first? Y/[n]");
-  bool fullErase = waitResponse();
-
-  if (fullErase) {
-    Serial.println("Full erase started...");
-    root->erase(0x0, root->size());
-    Serial.println("Full erase completed.");
-  } else {
-    Serial.println("Erasing MBR sector only...");
-    root->erase(0x0, root->get_erase_size());
-  }
-
-  Serial.println("Creating partition table...");
-  MBRBlockDevice::partition(root, 1, 0x0B, 0,                1 * 1024 * 1024);
-  MBRBlockDevice::partition(root, 2, 0x0B, 1 * 1024 * 1024,  6 * 1024 * 1024);
-  MBRBlockDevice::partition(root, 3, 0x0B, 6 * 1024 * 1024,  7 * 1024 * 1024);
-  MBRBlockDevice::partition(root, 4, 0x0B, 7 * 1024 * 1024, 14 * 1024 * 1024);
-
-  bool reformat = true;
-  if (!wifi_data_fs.mount(&wifi_data)) {
-    Serial.println("Partition 1 already has a filesystem. Reformat? Y/[n]");
-    wifi_data_fs.unmount();
-    reformat = waitResponse();
-  }
-  if (reformat && wifi_data_fs.reformat(&wifi_data)) {
-    Serial.println("ERROR: formatting partition 1 failed");
-    return;
-  }
-
-  reformat = true;
-  if (!ota_data_fs.mount(&ota_data)) {
-    Serial.println("Partition 2 already has a filesystem. Reformat? Y/[n]");
-    ota_data_fs.unmount();
-    reformat = waitResponse();
-  }
-  if (reformat && ota_data_fs.reformat(&ota_data)) {
-    Serial.println("ERROR: formatting partition 2 failed");
-    return;
-  }
-
-  Serial.println("Use LittleFS for partition 4? Y/[n]");
-  Serial.println("If No, FatFS will be used for partition 4.");
-  if (waitResponse()) {
-    Serial.println("Formatting partition 4 as LittleFS...");
-    user_data_fs = new LittleFileSystem("user");
-  } else {
-    Serial.println("Formatting partition 4 as FatFS...");
-    user_data_fs = new FATFileSystem("user");
-  }
-
-  reformat = true;
-  if (!user_data_fs->mount(&user_data)) {
-    Serial.println("Partition 4 already has a filesystem. Reformat? Y/[n]");
-    user_data_fs->unmount();
-    reformat = waitResponse();
-  }
-
-  if (reformat && user_data_fs->reformat(&user_data)) {
-    Serial.println("ERROR: formatting partition 4 failed");
-    return;
-  }
-
-  Serial.println("SUCCESS: QSPI partitioned and partition 4 formatted.");
-  Serial.println("It is now safe to reboot and upload the logger sketch.");
-}
-
-void loop() {
-}
-```
-
-For this project, the recommended answers are usually:
-
-- Proceed: **Y**
-- Full erase: **N** unless you intentionally want a full wipe
-- Use LittleFS for partition 4: **Y**
 
 ---
 
@@ -516,7 +352,6 @@ The Opta exposes these endpoints over its local web server:
 - The INA228 current/power calibration depends on the actual shunt value on your monitor boards.
 - The Opta LED/button UI depends on the board core exposing compatible LED and button pin aliases.
 - The OLED "off" behavior is software power-save, not physical power removal.
-- Runtime config file loading is currently disabled by default in favor of compile-time local secrets.
 
 ---
 
@@ -526,7 +361,7 @@ The Opta exposes these endpoints over its local web server:
 2. Create `secrets_local.h` from `secrets_example.h`.
 3. Fill in real local values in `secrets_local.h`.
 4. Confirm serial output appears at boot.
-5. Confirm runtime config summary reports compile-time secrets.
+5. Confirm the config summary reports compile-time secrets.
 6. Confirm both INA228 devices are detected at `0x40` and `0x41`.
 7. Confirm the SSD1309 OLED is detected and can wake on button press.
 8. Confirm the Solinst 301 responds on Modbus.
@@ -554,7 +389,6 @@ Possible next steps:
 - true coulomb-counted battery SOC
 - richer `/probe` output including INA228 fields
 - true switched-power control for the display instead of software power-save
-- optional restored runtime config path if file I/O on partition 4 is revisited later
 - better persistent backlog storage
 - OTA update path
 - more robust error classification for Solinst and upload failures
