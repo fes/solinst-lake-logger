@@ -169,11 +169,6 @@ int lastLoggedTmHour = -1;
 int lastLoggedTmMin  = -1;
 
 // Runtime config / user-data filesystem state
-mbed::BlockDevice* qspiRoot = mbed::BlockDevice::get_default_instance();
-mbed::MBRBlockDevice user_data_p4(qspiRoot, 4);
-mbed::MBRBlockDevice user_data_p3(qspiRoot, 3);
-mbed::LittleFileSystem user_lfs("user");
-mbed::FATFileSystem user_fatfs("user");
 mbed::FileSystem* user_fs = nullptr;
 bool userFsMounted = false;
 String userFsType = "unmounted";
