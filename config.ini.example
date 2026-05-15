@@ -1,4 +1,7 @@
-# Copy this file to /user/config.ini on the Opta user-data partition.
+# Legacy optional runtime config example.
+#
+# The recommended workflow is compile-time local secrets via secrets_local.h.
+# This file is kept only as an example for a future or custom runtime-config flow.
 # Lines beginning with # or ; are ignored.
 
 WIFI_SSID=your-ssid
