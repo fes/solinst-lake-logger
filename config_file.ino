@@ -1,7 +1,15 @@
 namespace {
 
-bool tryMountFs(mbed::FileSystem &fs, mbed::MBRBlockDevice &partition, const char* fsType, int partitionNumber) {
+bool tryMountFs(mbed::FileSystem &fs, mbed::BlockDevice &partition, const char* fsType, int partitionNumber) {
+  Serial.print("CFG: mounting ");
+  Serial.print(fsType);
+  Serial.print(" partition ");
+  Serial.println(partitionNumber);
+
   int err = fs.mount(&partition);
+  Serial.print("CFG: mount result = ");
+  Serial.println(err);
+
   if (err == 0) {
     user_fs = &fs;
     userFsMounted = true;
@@ -51,20 +59,40 @@ void buildPostPath() {
 }
 
 bool mountUserFileSystem() {
+  Serial.println("CFG: mountUserFileSystem enter");
+
   if (userFsMounted && user_fs != nullptr) {
+    Serial.println("CFG: already mounted");
     return true;
   }
 
+  static mbed::BlockDevice* qspiRoot = nullptr;
+  static mbed::LittleFileSystem user_lfs("user");
+  static mbed::FATFileSystem user_fatfs("user");
+
+  if (qspiRoot == nullptr) {
+    Serial.println("CFG: getting default block device");
+    qspiRoot = mbed::BlockDevice::get_default_instance();
+  }
+
+  Serial.println("CFG: check qspiRoot");
   if (qspiRoot == nullptr) {
     configLoadStatus = "QSPI block device not available";
+    Serial.println("CFG: qspiRoot is null");
     return false;
   }
 
+  Serial.println("CFG: before qspiRoot->init()");
   int err = qspiRoot->init();
+  Serial.print("CFG: qspiRoot->init() returned ");
+  Serial.println(err);
   if (err != 0) {
     configLoadStatus = "QSPI init failed";
     return false;
   }
+
+  static mbed::MBRBlockDevice user_data_p4(qspiRoot, 4);
+  static mbed::MBRBlockDevice user_data_p3(qspiRoot, 3);
 
   if (tryMountFs(user_lfs, user_data_p4, "LittleFS", 4)) return true;
   if (tryMountFs(user_fatfs, user_data_p4, "FatFS", 4)) return true;
@@ -72,11 +100,17 @@ bool mountUserFileSystem() {
   if (tryMountFs(user_fatfs, user_data_p3, "FatFS", 3)) return true;
 
   configLoadStatus = "could not mount /user filesystem";
+  Serial.println("CFG: all mount attempts failed");
   return false;
 }
 
 bool loadRuntimeConfig() {
+  Serial.println("CFG: loadRuntimeConfig enter");
+
   bool mounted = mountUserFileSystem();
+  Serial.print("CFG: mount returned ");
+  Serial.println(mounted ? "true" : "false");
+
   if (!mounted) {
     buildPostPath();
     configSource = "defaults";
@@ -86,7 +120,9 @@ bool loadRuntimeConfig() {
     return false;
   }
 
+  Serial.println("CFG: before fopen");
   FILE* fp = fopen("/user/config.ini", "r");
+  Serial.println("CFG: after fopen");
   if (fp == nullptr) {
     buildPostPath();
     configLoadStatus = "mounted /user but /user/config.ini not found";
@@ -103,7 +139,7 @@ bool loadRuntimeConfig() {
     line.trim();
 
     if (line.length() == 0) continue;
-    if (line.startsWith("#") || line.startsWith(";")) continue;
+    if (line.startsWith("#") || line.startsWith(";") ) continue;
 
     int eq = line.indexOf('=');
     if (eq <= 0) continue;
