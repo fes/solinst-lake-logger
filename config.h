@@ -19,18 +19,30 @@
 #include "LittleFileSystem.h"
 #include "FATFileSystem.h"
 
+#if __has_include("secrets_local.h")
+  #include "secrets_local.h"
+#else
+  #include "secrets_example.h"
+#endif
+
 // ============================================================
-// User configuration defaults
+// Compile-time configuration
 //
-// These values are used only as placeholders/fallbacks. At startup,
-// loadRuntimeConfig() will try to read /user/config.ini from the Opta
-// QSPI user-data partition and override them.
+// The recommended workflow is:
+//   1. Copy secrets_example.h to secrets_local.h
+//   2. Fill in real local values in secrets_local.h
+//   3. Keep secrets_local.h out of git
+//
+// Runtime config loading from /user/config.ini is currently disabled by
+// default because compile-time local secrets are the primary workflow.
 // ============================================================
-char WIFI_SSID[64] = "YOUR_WIFI_SSID";
-char WIFI_PASS[64] = "YOUR_WIFI_PASSWORD";
-char DEVICE_ID[64] = "opta-well-01";
-char SHARED_SECRET[128] = "PUT_A_LONG_RANDOM_SECRET_HERE";
-char POST_DEPLOYMENT_ID[128] = "PUT_YOUR_DEPLOYMENT_ID_HERE";
+constexpr bool USE_RUNTIME_CONFIG = false;
+
+char WIFI_SSID[64] = WIFI_SSID_VALUE;
+char WIFI_PASS[64] = WIFI_PASS_VALUE;
+char DEVICE_ID[64] = DEVICE_ID_VALUE;
+char SHARED_SECRET[128] = SHARED_SECRET_VALUE;
+char POST_DEPLOYMENT_ID[128] = DEPLOYMENT_ID_VALUE;
 
 // Google Apps Script Web App:
 // https://script.google.com/macros/s/DEPLOYMENT_ID/exec
@@ -47,7 +59,7 @@ constexpr uint16_t HTTP_PORT = 80;
 constexpr unsigned long NTP_RESYNC_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
 constexpr int LOG_INTERVAL_MINUTES = 15;
 constexpr int LOG_BOUNDARY_WINDOW_SECONDS = 5;
-constexpr unsigned long DISPLAY_ON_SECONDS_DEFAULT = 15UL;
+constexpr unsigned long DISPLAY_ON_SECONDS_DEFAULT = DISPLAY_ON_SECONDS_VALUE;
 constexpr unsigned long DISPLAY_REFRESH_INTERVAL_MS = 500UL;
 
 // Solinst defaults
@@ -174,7 +186,7 @@ bool userFsMounted = false;
 String userFsType = "unmounted";
 int userFsPartition = -1;
 String configLoadStatus = "not attempted";
-String configSource = "defaults";
+String configSource = "compiled secrets";
 
 // ============================================================
 // Prototypes
