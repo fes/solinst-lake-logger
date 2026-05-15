@@ -27,8 +27,8 @@ The logger currently uploads:
 ## Repository layout
 
 - `Solinst_Lake_Logger.ino` - main setup/loop
-- `config.h` - compile-time defaults, globals, prototypes, monitor addresses
-- `config_file.ino` - compile-time config summary and Apps Script path builder
+- `config.h` - compile-time defaults, globals, prototypes, monitor addresses, and tracked non-secret defaults
+- `config_file.ino` - compile-time config initialization and summary output
 - `secrets_example.h` - tracked template for local secrets
 - `util.ino` - utility helpers
 - `backlog.ino` - upload backlog queue
@@ -131,14 +131,33 @@ Compile-time local secrets give you:
 #define DEVICE_ID_VALUE "opta-well-01"
 #define SHARED_SECRET_VALUE "your-long-random-secret"
 #define DEPLOYMENT_ID_VALUE "AKfycbxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-#define DISPLAY_ON_SECONDS_VALUE 15UL
 ```
+
+### Hard-fail behavior
+
+The build now **fails by default** if `secrets_local.h` is missing.
+
+That is intentional. It prevents accidentally flashing a device with placeholder/example values.
+
+If you intentionally want a placeholder or non-production build, define:
+
+```cpp
+ALLOW_PLACEHOLDER_SECRETS
+```
+
+and the project will fall back to `secrets_example.h`.
+
+### Secret vs non-secret settings
+
+`secrets_local.h` is now intended only for secrets and deployment-specific identifiers.
+
+Non-secret tuning values stay in tracked config. For example, the OLED display timeout now lives in `config.h` as `DISPLAY_ON_SECONDS_DEFAULT`.
 
 ### Current behavior in code
 
-`config.h` includes `secrets_local.h` if it exists; otherwise it falls back to `secrets_example.h`.
+`config.h` includes `secrets_local.h` if it exists. If it does not exist, the build errors unless `ALLOW_PLACEHOLDER_SECRETS` is defined.
 
-`config_file.ino` now only builds the POST path and prints a summary of the compile-time values being used.
+`config_file.ino` initializes the derived POST path and prints a summary of the compile-time values being used.
 
 ---
 
@@ -237,7 +256,7 @@ Because Opta core releases can change pin alias naming, if the LED/button UI doe
 7. Click **Verify**.
 8. Click **Upload**.
 
-If compilation fails on missing libraries, install them first and restart the IDE if needed.
+If compilation fails because `secrets_local.h` is missing, create it from the example template. Only use `ALLOW_PLACEHOLDER_SECRETS` for deliberate placeholder builds.
 
 ---
 
@@ -339,7 +358,7 @@ The Opta exposes these endpoints over its local web server:
 - The system waits until the clock is valid before scheduled logging begins.
 - If an upload fails, the reading is queued in a small in-memory backlog and retried later.
 - The OLED display remains in power-save mode until the user presses the Opta button.
-- Once woken, the display remains on for `DISPLAY_ON_SECONDS_VALUE` and then returns to power-save mode.
+- Once woken, the display remains on for `DISPLAY_ON_SECONDS_DEFAULT` and then returns to power-save mode.
 
 ---
 
