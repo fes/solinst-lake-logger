@@ -27,29 +27,18 @@ void buildPostPath() {
            POST_PATH_SUFFIX);
 }
 
-bool mountUserFileSystem() {
-  configLoadStatus = "runtime config disabled";
-  return false;
-}
-
 bool loadRuntimeConfig() {
   buildPostPath();
   configSource = "compiled secrets";
-  configLoadStatus = "runtime config disabled";
+  configLoadStatus = "using secrets_local.h or secrets_example.h";
   Serial.println("Config: using compile-time secrets header");
-  return false;
+  return true;
 }
 
 void printRuntimeConfigSummary() {
   Serial.println("Runtime config summary:");
   Serial.print("  config source: ");
   Serial.println(configSource);
-  Serial.print("  user fs mounted: ");
-  Serial.println(userFsMounted ? "true" : "false");
-  Serial.print("  user fs type: ");
-  Serial.println(userFsType);
-  Serial.print("  user fs partition: ");
-  Serial.println(userFsPartition);
   Serial.print("  config status: ");
   Serial.println(configLoadStatus);
 
