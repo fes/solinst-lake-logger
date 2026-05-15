@@ -92,12 +92,9 @@ bool mountUserFileSystem() {
   }
 
   static mbed::MBRBlockDevice user_data_p4(qspiRoot, 4);
-  static mbed::MBRBlockDevice user_data_p3(qspiRoot, 3);
 
   if (tryMountFs(user_lfs, user_data_p4, "LittleFS", 4)) return true;
   if (tryMountFs(user_fatfs, user_data_p4, "FatFS", 4)) return true;
-  if (tryMountFs(user_lfs, user_data_p3, "LittleFS", 3)) return true;
-  if (tryMountFs(user_fatfs, user_data_p3, "FatFS", 3)) return true;
 
   configLoadStatus = "could not mount /user filesystem";
   Serial.println("CFG: all mount attempts failed");
