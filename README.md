@@ -6,7 +6,6 @@ A field logger for an **Arduino Opta WiFi** that:
 - timestamps readings with NTP-synchronized UTC time
 - exposes local HTTP endpoints for health and diagnostics
 - uploads readings to a **Google Apps Script** web app that writes into a Google Sheet
-- reads runtime configuration from `/user/config.ini` on the Opta QSPI user-data filesystem
 - reads two **INA228** I2C power monitors:
   - **battery output** monitor at **0x40**
   - **solar input** monitor at **0x41**
@@ -29,7 +28,8 @@ The logger currently uploads:
 
 - `Solinst_Lake_Logger.ino` - main setup/loop
 - `config.h` - compile-time defaults, globals, prototypes, monitor addresses
-- `config_file.ino` - runtime config loader from `/user/config.ini`
+- `config_file.ino` - compile-time config summary/path builder; runtime config loading is currently disabled by default
+- `secrets_example.h` - tracked template for local secrets
 - `util.ino` - utility helpers
 - `backlog.ino` - upload backlog queue
 - `time_sync.ino` - Wi-Fi and NTP time sync
@@ -42,7 +42,7 @@ The logger currently uploads:
 - `google_upload.ino` - JSON payload generation and upload
 - `http_api.ino` - local HTTP handlers
 - `google_apps_script.gs` - Google Apps Script endpoint for Sheets logging
-- `config.ini.example` - example runtime config file
+- `config.ini.example` - legacy optional runtime-config example
 
 ---
 
@@ -91,6 +91,55 @@ If your display is strapped for a different I2C address, update the value in `co
 ### Solar charging boolean
 
 `solar_charging_battery` is `true` when the solar INA228 is valid and reports current above a small threshold.
+
+---
+
+## Recommended configuration workflow
+
+The recommended workflow is now **compile-time local secrets**, not a separate runtime config file.
+
+### Why
+
+This project is maintained in GitHub, but device-specific values such as Wi-Fi credentials, deployment IDs, and shared secrets should not be tracked in the repository.
+
+Compile-time local secrets give you:
+
+- values included in the firmware image at build time
+- no dependency on runtime filesystem file I/O for normal deployment
+- lower risk of accidentally committing real secrets
+- a simple per-developer or per-device local workflow
+
+### Files used
+
+- `secrets_example.h` - tracked template with safe placeholders
+- `secrets_local.h` - local untracked file with real values
+- `.gitignore` ignores `secrets_local.h`
+
+### Setup steps
+
+1. Copy `secrets_example.h` to `secrets_local.h`
+2. Fill in your real values in `secrets_local.h`
+3. Build and upload normally
+4. Do **not** commit `secrets_local.h`
+
+### Example `secrets_local.h`
+
+```cpp
+#pragma once
+
+#define WIFI_SSID_VALUE "your-real-ssid"
+#define WIFI_PASS_VALUE "your-real-password"
+#define DEVICE_ID_VALUE "opta-well-01"
+#define SHARED_SECRET_VALUE "your-long-random-secret"
+#define DEPLOYMENT_ID_VALUE "AKfycbxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+#define DISPLAY_ON_SECONDS_VALUE 15UL
+```
+
+### Current behavior in code
+
+`config.h` includes `secrets_local.h` if it exists; otherwise it falls back to `secrets_example.h`.
+
+Runtime config loading from `/user/config.ini` is currently **disabled by default**, and the code reports that it is using compile-time secrets.
 
 ---
 
@@ -183,88 +232,39 @@ Because Opta core releases can change pin alias naming, if the LED/button UI doe
 1. Open the repository folder in **Arduino IDE**.
 2. Make sure the sketch tabs/files are all present.
 3. Install the required libraries.
-4. Select the **Arduino Opta WiFi** board.
-5. Select the correct USB port.
-6. Click **Verify**.
-7. Click **Upload**.
+4. Create `secrets_local.h` from `secrets_example.h` and fill in real values.
+5. Select the **Arduino Opta WiFi** board.
+6. Select the correct USB port.
+7. Click **Verify**.
+8. Click **Upload**.
 
 If compilation fails on missing libraries, install them first and restart the IDE if needed.
 
 ---
 
-## Runtime configuration
+## Runtime config / QSPI notes
 
-This project does **not** require secrets to be compiled into the sketch.
+A legacy runtime-config path using `/user/config.ini` and QSPI partition 4 was explored during development.
 
-At boot it tries to load runtime values from:
+### Current state
 
-`/user/config.ini`
+- The code still retains some runtime-config scaffolding.
+- The default build path now uses **compile-time local secrets**.
+- Runtime loading from `/user/config.ini` is disabled by default.
 
-on the Opta QSPI user-data filesystem.
+### When QSPI partitioning may still matter
 
-### Supported keys
+You may still care about Opta QSPI partitioning if you want to experiment later with:
 
-The loader reads these keys:
-
-- `WIFI_SSID`
-- `WIFI_PASS`
-- `DEVICE_ID`
-- `SHARED_SECRET`
-- `DEPLOYMENT_ID`
-- `DISPLAY_ON_SECONDS`
-
-For backward compatibility it also accepts:
-
-- `POST_DEPLOYMENT_ID`
-- `POST_PATH`
-
-but those values are interpreted as the **Google Apps Script deployment ID**, not the full path.
-
-### Example config file
-
-Use `config.ini.example` as your template.
-
-Example:
-
-```ini
-WIFI_SSID=your-ssid
-WIFI_PASS=your-password
-DEVICE_ID=opta-well-01
-SHARED_SECRET=your-long-random-secret
-DEPLOYMENT_ID=AKfycbxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-DISPLAY_ON_SECONDS=15
-```
-
-The code builds the Apps Script path automatically as:
-
-```text
-/macros/s/<DEPLOYMENT_ID>/exec
-```
-
----
-
-## Preparing `/user/config.ini` on the Opta
-
-You need a writable **user-data filesystem** on the Opta QSPI flash.
-
-The logger now attempts to mount only:
-
-- **LittleFS on partition 4**
-- then **FatFS on partition 4**
-
-If the QSPI partition table or filesystem has not already been created on your board, you will need to create/format it first.
-
-### Why formatting may be required
-
-A fresh Opta may not already have the expected QSPI partition layout and user-data filesystem in place. In that case, runtime mounting of `/user/config.ini` will fail until the QSPI flash is partitioned and partition 4 is formatted.
-
-### Recommended approach
-
-Arduino provides a broader Opta QSPI formatting sketch that repartitions the whole QSPI flash and can also restore Wi-Fi-related content. The simplified sketch below is derived from that Arduino example, but removes the Wi-Fi firmware/certificate restore pieces and focuses on creating the partition table plus formatting the user-data partition. If you need the original source, start from Arduino's Opta QSPI formatting example and use this version as the minimal user-data-oriented variant.
+- runtime config files
+- PLC runtime coexistence
+- other user-data storage on partition 4
 
 ### Simplified partition-and-format sketch
 
-Upload this sketch to the **M7 core** of the Opta. It creates the standard partition layout and formats **partition 4** for user data.
+A simplified sketch derived from Arduino's broader Opta QSPI formatter was used during development to create the partition table and format partition 4. That Arduino-origin flow repartitions all four partitions and can also restore Wi-Fi-related content; this simplified version focuses on partitioning plus formatting the user-data partition.
+
+Upload this sketch to the **M7 core** of the Opta:
 
 ```cpp
 #include "BlockDevice.h"
@@ -397,59 +397,11 @@ void loop() {
 }
 ```
 
-### Recommended answers when running the formatter
-
-For this project, a good default is:
+For this project, the recommended answers are usually:
 
 - Proceed: **Y**
-- Full erase: **N** (unless you want to wipe everything intentionally)
+- Full erase: **N** unless you intentionally want a full wipe
 - Use LittleFS for partition 4: **Y**
-
-### After formatting
-
-Once partition 4 is successfully formatted, you need to put your runtime config file at:
-
-```text
-/user/config.ini
-```
-
-There are two practical ways to do that:
-
-#### Option A: temporarily use compiled-in values
-
-For initial bring-up, you can skip `/user/config.ini` entirely and put your real values directly into `config.h`. The logger will use those built-in defaults if the file is missing.
-
-#### Option B: write `/user/config.ini` onto the filesystem
-
-After formatting, use a small helper sketch that mounts partition 4 and writes `/user/config.ini`.
-
-A simple pattern is:
-
-1. Mount partition 4 as `/user`
-2. Open `/user/config.ini` for write
-3. Write the config text
-4. Close the file
-5. Reboot and run the logger sketch
-
-Example config contents:
-
-```ini
-WIFI_SSID=your-ssid
-WIFI_PASS=your-password
-DEVICE_ID=opta-well-01
-SHARED_SECRET=your-long-random-secret
-DEPLOYMENT_ID=AKfycbxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-DISPLAY_ON_SECONDS=15
-```
-
-On boot, the serial console prints a runtime config summary including:
-
-- whether the user filesystem mounted
-- filesystem type
-- partition used
-- whether config values came from `config.ini` or defaults
-- a masked self-test of the loaded secret values
-- the active display timeout in seconds
 
 ---
 
@@ -471,11 +423,11 @@ The repository includes `google_apps_script.gs`.
 2. Name it as desired.
 3. Open **Extensions -> Apps Script** from that sheet.
 4. Paste in the contents of `google_apps_script.gs`.
-5. Set the `SHARED_SECRET` in the script to the same value used in `/user/config.ini`.
+5. Set the `SHARED_SECRET` in the script to the same value used in `secrets_local.h`.
 6. Save the project.
 7. Deploy it as a **Web app**.
 8. Copy the **deployment ID** from the web app URL.
-9. Put that deployment ID into `/user/config.ini` as `DEPLOYMENT_ID=...`.
+9. Put that deployment ID into `secrets_local.h` as `DEPLOYMENT_ID_VALUE`.
 
 ### Important Apps Script notes
 
@@ -551,7 +503,7 @@ The Opta exposes these endpoints over its local web server:
 - The system waits until the clock is valid before scheduled logging begins.
 - If an upload fails, the reading is queued in a small in-memory backlog and retried later.
 - The OLED display remains in power-save mode until the user presses the Opta button.
-- Once woken, the display remains on for `DISPLAY_ON_SECONDS` and then returns to power-save mode.
+- Once woken, the display remains on for `DISPLAY_ON_SECONDS_VALUE` and then returns to power-save mode.
 
 ---
 
@@ -564,31 +516,34 @@ The Opta exposes these endpoints over its local web server:
 - The INA228 current/power calibration depends on the actual shunt value on your monitor boards.
 - The Opta LED/button UI depends on the board core exposing compatible LED and button pin aliases.
 - The OLED "off" behavior is software power-save, not physical power removal.
+- Runtime config file loading is currently disabled by default in favor of compile-time local secrets.
 
 ---
 
 ## Typical bring-up checklist
 
 1. Confirm the Opta sketch compiles.
-2. Confirm serial output appears at boot.
-3. If needed, partition/format QSPI partition 4 for `/user`.
-4. Confirm runtime config is loaded from `/user/config.ini` or intentionally falls back to compiled defaults.
-5. Confirm both INA228 devices are detected at `0x40` and `0x41`.
-6. Confirm the SSD1309 OLED is detected and can wake on button press.
-7. Confirm the Solinst 301 responds on Modbus.
-8. Confirm Wi-Fi connects.
-9. Confirm the Apps Script web app responds.
-10. Confirm data appears in the correct yearly tab in Google Sheets.
-11. Confirm LED behavior matches the expected field UI.
-12. Confirm the display turns off again after the configured timeout.
+2. Create `secrets_local.h` from `secrets_example.h`.
+3. Fill in real local values in `secrets_local.h`.
+4. Confirm serial output appears at boot.
+5. Confirm runtime config summary reports compile-time secrets.
+6. Confirm both INA228 devices are detected at `0x40` and `0x41`.
+7. Confirm the SSD1309 OLED is detected and can wake on button press.
+8. Confirm the Solinst 301 responds on Modbus.
+9. Confirm Wi-Fi connects.
+10. Confirm the Apps Script web app responds.
+11. Confirm data appears in the correct yearly tab in Google Sheets.
+12. Confirm LED behavior matches the expected field UI.
+13. Confirm the display turns off again after the configured timeout.
 
 ---
 
 ## Security notes
 
 - Do **not** commit real secrets to source control.
-- Keep real values in `/user/config.ini` on the device.
-- Keep the Apps Script `SHARED_SECRET` synchronized with the device config.
+- Keep real values in `secrets_local.h` on the build machine.
+- `secrets_local.h` is intentionally git-ignored.
+- Keep the Apps Script `SHARED_SECRET` synchronized with the value in `secrets_local.h`.
 
 ---
 
@@ -599,7 +554,7 @@ Possible next steps:
 - true coulomb-counted battery SOC
 - richer `/probe` output including INA228 fields
 - true switched-power control for the display instead of software power-save
-- helper sketch to write `/user/config.ini` automatically after formatting
+- optional restored runtime config path if file I/O on partition 4 is revisited later
 - better persistent backlog storage
 - OTA update path
 - more robust error classification for Solinst and upload failures
