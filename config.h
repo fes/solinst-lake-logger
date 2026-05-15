@@ -16,8 +16,10 @@
 
 #if __has_include("secrets_local.h")
   #include "secrets_local.h"
-#else
+#elif defined(ALLOW_PLACEHOLDER_SECRETS)
   #include "secrets_example.h"
+#else
+  #error "Missing secrets_local.h. Copy secrets_example.h to secrets_local.h and fill in real values. Define ALLOW_PLACEHOLDER_SECRETS only for non-production placeholder builds."
 #endif
 
 // ============================================================
@@ -27,6 +29,9 @@
 //   1. Copy secrets_example.h to secrets_local.h
 //   2. Fill in real local values in secrets_local.h
 //   3. Keep secrets_local.h out of git
+//
+// Set ALLOW_PLACEHOLDER_SECRETS only when you intentionally want a
+// placeholder/non-production build.
 // ============================================================
 char WIFI_SSID[64] = WIFI_SSID_VALUE;
 char WIFI_PASS[64] = WIFI_PASS_VALUE;
@@ -40,7 +45,7 @@ const char* POST_HOST = "script.google.com";
 const int   POST_PORT = 443;
 const char* POST_PATH_PREFIX = "/macros/s/";
 const char* POST_PATH_SUFFIX = "/exec";
-char POST_PATH[256] = "/macros/s/PUT_YOUR_DEPLOYMENT_ID_HERE/exec";
+char POST_PATH[256] = "";
 
 // Local HTTP server port
 constexpr uint16_t HTTP_PORT = 80;
@@ -49,7 +54,7 @@ constexpr uint16_t HTTP_PORT = 80;
 constexpr unsigned long NTP_RESYNC_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
 constexpr int LOG_INTERVAL_MINUTES = 15;
 constexpr int LOG_BOUNDARY_WINDOW_SECONDS = 5;
-constexpr unsigned long DISPLAY_ON_SECONDS_DEFAULT = DISPLAY_ON_SECONDS_VALUE;
+constexpr unsigned long DISPLAY_ON_SECONDS_DEFAULT = 15UL;
 constexpr unsigned long DISPLAY_REFRESH_INTERVAL_MS = 500UL;
 
 // Solinst defaults
