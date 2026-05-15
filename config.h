@@ -14,11 +14,6 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "BlockDevice.h"
-#include "MBRBlockDevice.h"
-#include "LittleFileSystem.h"
-#include "FATFileSystem.h"
-
 #if __has_include("secrets_local.h")
   #include "secrets_local.h"
 #else
@@ -28,16 +23,11 @@
 // ============================================================
 // Compile-time configuration
 //
-// The recommended workflow is:
+// Recommended workflow:
 //   1. Copy secrets_example.h to secrets_local.h
 //   2. Fill in real local values in secrets_local.h
 //   3. Keep secrets_local.h out of git
-//
-// Runtime config loading from /user/config.ini is currently disabled by
-// default because compile-time local secrets are the primary workflow.
 // ============================================================
-constexpr bool USE_RUNTIME_CONFIG = false;
-
 char WIFI_SSID[64] = WIFI_SSID_VALUE;
 char WIFI_PASS[64] = WIFI_PASS_VALUE;
 char DEVICE_ID[64] = DEVICE_ID_VALUE;
@@ -180,11 +170,7 @@ int lastLoggedTmYDay = -1;
 int lastLoggedTmHour = -1;
 int lastLoggedTmMin  = -1;
 
-// Runtime config / user-data filesystem state
-mbed::FileSystem* user_fs = nullptr;
-bool userFsMounted = false;
-String userFsType = "unmounted";
-int userFsPartition = -1;
+// Compile-time config summary state
 String configLoadStatus = "not attempted";
 String configSource = "compiled secrets";
 
@@ -238,7 +224,6 @@ String probeJson(const ProbeReading &r);
 String statusJson();
 void handleHttpClient();
 
-bool mountUserFileSystem();
 void buildPostPath();
 bool loadRuntimeConfig();
 void printRuntimeConfigSummary();
