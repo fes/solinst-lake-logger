@@ -60,6 +60,8 @@ constexpr unsigned long DISPLAY_REFRESH_INTERVAL_MS = 500UL;
 // Solinst defaults
 constexpr uint32_t WLTS_BAUD = 19200;
 constexpr auto     WLTS_SERIAL_CFG = SERIAL_8E1;
+constexpr bool     WLTS_USE_FIXED_MODBUS_ID = true;
+constexpr uint8_t  WLTS_FIXED_MODBUS_ID = 1;
 
 // Opta RS-485 timing discovered during Solinst 301 bring-up. The Opta RS485
 // object echoes TX bytes into RX, and the 301 response may arrive after that
@@ -69,7 +71,7 @@ constexpr unsigned long WLTS_RS485_PRE_DELAY_US  = 1000UL;
 constexpr unsigned long WLTS_RS485_POST_DELAY_US = 1000UL;
 constexpr unsigned long WLTS_RESPONSE_TIMEOUT_MS = 1500UL;
 
-// Startup Modbus scan range
+// Startup Modbus scan range used only when WLTS_USE_FIXED_MODBUS_ID is false.
 constexpr uint8_t SCAN_START_ID = 1;
 constexpr uint8_t SCAN_END_ID   = 10;
 
