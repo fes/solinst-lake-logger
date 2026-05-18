@@ -1,4 +1,72 @@
+String prettyJson(const String &compact) {
+  String out;
+  out.reserve(compact.length() + 64);
+
+  int indent = 0;
+  bool inString = false;
+  bool escaping = false;
+
+  for (size_t i = 0; i < compact.length(); i++) {
+    char c = compact[i];
+
+    if (inString) {
+      out += c;
+      if (escaping) {
+        escaping = false;
+      } else if (c == '\\') {
+        escaping = true;
+      } else if (c == '"') {
+        inString = false;
+      }
+      continue;
+    }
+
+    switch (c) {
+      case '"':
+        inString = true;
+        out += c;
+        break;
+
+      case '{':
+      case '[':
+        out += c;
+        out += '\n';
+        indent++;
+        for (int j = 0; j < indent; j++) out += "  ";
+        break;
+
+      case '}':
+      case ']':
+        out += '\n';
+        indent = max(0, indent - 1);
+        for (int j = 0; j < indent; j++) out += "  ";
+        out += c;
+        break;
+
+      case ',':
+        out += c;
+        out += '\n';
+        for (int j = 0; j < indent; j++) out += "  ";
+        break;
+
+      case ':':
+        out += ": ";
+        break;
+
+      default:
+        if (c != '\n' && c != '\r' && c != '\t') {
+          out += c;
+        }
+        break;
+    }
+  }
+
+  return out;
+}
+
 void sendHttpJson(WiFiClient &client, int statusCode, const String &body) {
+  String formattedBody = prettyJson(body);
+
   client.print("HTTP/1.1 ");
   client.print(statusCode);
   if (statusCode == 200) client.println(" OK");
@@ -9,9 +77,9 @@ void sendHttpJson(WiFiClient &client, int statusCode, const String &body) {
   client.println("Content-Type: application/json");
   client.println("Connection: close");
   client.print("Content-Length: ");
-  client.println(body.length());
+  client.println(formattedBody.length());
   client.println();
-  client.print(body);
+  client.print(formattedBody);
 }
 
 String probeJson(const ProbeReading &r) {
