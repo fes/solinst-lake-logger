@@ -30,8 +30,7 @@ String probeJson(const ProbeReading &r) {
 }
 
 String statusJson() {
-  ProbeReading powerSnapshot = lastProbeReading;
-  readPowerMonitors(powerSnapshot);
+  const ProbeReading &powerSnapshot = lastProbeReading;
   float batteryChargePct = approximateBatteryChargePercent(powerSnapshot);
   bool solarChargingNow = solarChargingBatteryNow(powerSnapshot);
 
@@ -76,6 +75,8 @@ void handleHttpClient() {
   WiFiClient client = server.available();
   if (!client) return;
 
+  Serial.println("HTTP: client connected");
+
   String requestLine = "";
   unsigned long start = millis();
 
@@ -96,28 +97,36 @@ void handleHttpClient() {
     }
   }
 
-  Serial.print("HTTP request: ");
+  Serial.print("HTTP: request line = ");
   Serial.println(requestLine);
 
   if (requestLine.startsWith("GET /probe")) {
+    Serial.println("HTTP: handling /probe");
     ProbeReading r;
     if (probeNow(r)) {
+      Serial.println("HTTP: /probe success, sending 200");
       sendHttpJson(client, 200, probeJson(r));
     } else {
+      Serial.println("HTTP: /probe failed, sending 500");
       sendHttpJson(client, 500, "{\"ok\":false,\"error\":\"probe read failed\"}");
     }
   } else if (requestLine.startsWith("GET /status")) {
+    Serial.println("HTTP: handling /status");
     sendHttpJson(client, 200, statusJson());
+    Serial.println("HTTP: /status sent");
   } else if (requestLine.startsWith("GET /reset")) {
+    Serial.println("HTTP: handling /reset");
     sendHttpJson(client, 200, "{\"ok\":true,\"message\":\"rebooting\"}");
     client.flush();
     delay(200);
     NVIC_SystemReset();
   } else {
+    Serial.println("HTTP: route not found, sending 404");
     sendHttpJson(client, 404,
       "{\"ok\":false,\"error\":\"not found\",\"routes\":[\"/probe\",\"/status\",\"/reset\"]}");
   }
 
   delay(1);
   client.stop();
+  Serial.println("HTTP: client closed");
 }
