@@ -184,7 +184,6 @@ bool readInputRegistersOnce(uint8_t slaveId, uint16_t startReg, uint16_t quantit
 
   uint8_t responseBuffer[96];
   const uint8_t expectedByteCount = quantity * 2;
-  const size_t expectedFrameLength = (size_t)expectedByteCount + 5;
   int responseOffset = -1;
 
   size_t responseLength = readRawResponseUntilCandidate(
@@ -228,7 +227,6 @@ bool readInputRegistersOnce(uint8_t slaveId, uint16_t startReg, uint16_t quantit
   }
 
   if (errorOut) *errorOut = nullptr;
-  (void)expectedFrameLength;
   return true;
 }
 
@@ -315,6 +313,22 @@ bool identityLooksValid(const SensorIdentity &id) {
 }
 
 bool scanForSensor(uint8_t startId, uint8_t endId, uint8_t &foundId, SensorIdentity &foundIdentity) {
+  if (WLTS_USE_FIXED_MODBUS_ID) {
+    Serial.print("Trying configured Solinst Modbus ID ");
+    Serial.println(WLTS_FIXED_MODBUS_ID);
+
+    SensorIdentity candidate;
+    if (readSensorIdentity(WLTS_FIXED_MODBUS_ID, candidate) && identityLooksValid(candidate)) {
+      foundId = WLTS_FIXED_MODBUS_ID;
+      foundIdentity = candidate;
+      return true;
+    }
+
+    Serial.print("Configured Solinst Modbus ID did not respond: ");
+    Serial.println(WLTS_FIXED_MODBUS_ID);
+    return false;
+  }
+
   for (uint8_t id = startId; id <= endId; id++) {
     Serial.print("Scanning Modbus ID ");
     Serial.println(id);
