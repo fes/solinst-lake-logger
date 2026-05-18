@@ -33,6 +33,7 @@ String statusJson() {
   const ProbeReading &powerSnapshot = lastProbeReading;
   float batteryChargePct = approximateBatteryChargePercent(powerSnapshot);
   bool solarChargingNow = solarChargingBatteryNow(powerSnapshot);
+  unsigned long uploadCooldownRemainingMs = (millis() < nextUploadAllowedMs) ? (nextUploadAllowedMs - millis()) : 0UL;
 
   String body = "{";
   body += "\"device_id\":\"" + jsonEscape(String(DEVICE_ID)) + "\",";
@@ -52,6 +53,10 @@ String statusJson() {
   body += "\"last_successful_probe_read_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulProbeReadMs)) + "\",";
   body += "\"last_successful_upload_utc\":\"" + jsonEscape(lastSuccessfulUploadUtc) + "\",";
   body += "\"last_successful_upload_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulUploadMs)) + "\",";
+  body += "\"last_upload_error_utc\":\"" + jsonEscape(lastUploadErrorUtc) + "\",";
+  body += "\"last_upload_error\":\"" + jsonEscape(lastUploadError) + "\",";
+  body += "\"upload_cooldown_remaining_ms\":" + String(uploadCooldownRemainingMs) + ",";
+  body += "\"consecutive_upload_failures\":" + String(consecutiveUploadFailures) + ",";
   body += "\"successful_probe_reads\":" + String(successfulProbeReads) + ",";
   body += "\"failed_probe_reads\":" + String(failedProbeReads) + ",";
   body += "\"successful_uploads\":" + String(successfulUploads) + ",";
