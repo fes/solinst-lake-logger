@@ -61,6 +61,14 @@ constexpr unsigned long DISPLAY_REFRESH_INTERVAL_MS = 500UL;
 constexpr uint32_t WLTS_BAUD = 19200;
 constexpr auto     WLTS_SERIAL_CFG = SERIAL_8E1;
 
+// Opta RS-485 timing discovered during Solinst 301 bring-up. The Opta RS485
+// object echoes TX bytes into RX, and the 301 response may arrive after that
+// echo. probe_modbus.ino forces receive mode, parses past TX echo, and keeps
+// waiting up to this timeout for a valid response frame.
+constexpr unsigned long WLTS_RS485_PRE_DELAY_US  = 1000UL;
+constexpr unsigned long WLTS_RS485_POST_DELAY_US = 1000UL;
+constexpr unsigned long WLTS_RESPONSE_TIMEOUT_MS = 1500UL;
+
 // Startup Modbus scan range
 constexpr uint8_t SCAN_START_ID = 1;
 constexpr uint8_t SCAN_END_ID   = 10;
