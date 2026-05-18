@@ -82,6 +82,8 @@ constexpr unsigned long MAX_BACKOFF_MS     = 4000;
 
 constexpr int POST_RETRIES = 3;
 constexpr unsigned long POST_RETRY_DELAY_MS = 2000;
+constexpr unsigned long UPLOAD_RETRY_COOLDOWN_INITIAL_MS = 30000UL;
+constexpr unsigned long UPLOAD_RETRY_COOLDOWN_MAX_MS = 15UL * 60UL * 1000UL;
 
 // Solinst 301 input registers
 constexpr uint16_t REG_FW_VERSION = 0x0000;
@@ -169,15 +171,19 @@ unsigned long lastSuccessfulProbeReadMs = 0;
 unsigned long lastSuccessfulUploadMs = 0;
 unsigned long lastProbeAttemptMs = 0;
 unsigned long lastUploadAttemptMs = 0;
+unsigned long nextUploadAllowedMs = 0;
 
 String lastSuccessfulProbeReadUtc = "";
 String lastSuccessfulUploadUtc = "";
+String lastUploadError = "";
+String lastUploadErrorUtc = "";
 
 uint32_t successfulProbeReads = 0;
 uint32_t failedProbeReads = 0;
 uint32_t successfulUploads = 0;
 uint32_t failedUploads = 0;
 uint32_t droppedBacklogEntries = 0;
+uint32_t consecutiveUploadFailures = 0;
 
 // Boundary logging state
 int lastLoggedTmYear = -1;
@@ -233,6 +239,8 @@ bool postJson(const String &payload);
 bool postReadingWithRetry(const ProbeReading &r);
 void flushBacklogOnce();
 bool performProbeAndUpload(const char *reason);
+void recordUploadFailure(const String &reason);
+void clearUploadFailureState();
 
 void sendHttpJson(WiFiClient &client, int statusCode, const String &body);
 String probeJson(const ProbeReading &r);
