@@ -54,6 +54,18 @@ void clearUploadFailureState() {
   lastUploadErrorUtc = "";
 }
 
+bool isSuccessfulGoogleAppsScriptResponse(int statusCode, const String &response) {
+  if (statusCode == 200) return true;
+
+  if ((statusCode == 301 || statusCode == 302 || statusCode == 303 || statusCode == 307 || statusCode == 308) &&
+      response.indexOf("script.googleusercontent.com") >= 0) {
+    Serial.println("Treating Google Apps Script redirect response as upload success");
+    return true;
+  }
+
+  return false;
+}
+
 bool postJson(const String &payload) {
   httpClient.stop();
 
@@ -73,7 +85,7 @@ bool postJson(const String &payload) {
   Serial.print("POST response: ");
   Serial.println(response);
 
-  if (statusCode == 200) {
+  if (isSuccessfulGoogleAppsScriptResponse(statusCode, response)) {
     return true;
   }
 
