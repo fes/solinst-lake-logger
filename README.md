@@ -27,7 +27,7 @@ The logger currently uploads:
 ## Repository layout
 
 - `Solinst_Lake_Logger.ino` - main setup/loop
-- `config.h` - compile-time defaults, globals, prototypes, monitor addresses, and tracked non-secret defaults
+- `config.h` - compile-time defaults, globals, prototypes, monitor addresses, upload backoff settings, and tracked non-secret defaults
 - `config_file.ino` - compile-time config initialization and summary output
 - `secrets_example.h` - tracked template for local secrets
 - `util.ino` - utility helpers
@@ -39,8 +39,8 @@ The logger currently uploads:
 - `battery_status.ino` - shared battery estimate / charging status helpers
 - `ui_status.ino` - Opta LED behavior and user-button handling
 - `display_oled.ino` - SSD1309 OLED init / wake / timeout / redraw logic
-- `google_upload.ino` - JSON payload generation and upload
-- `http_api.ino` - local HTTP handlers
+- `google_upload.ino` - JSON payload generation, upload retry logic, and cooldown state
+- `http_api.ino` - local HTTP handlers, pretty-printed JSON responses, and HTML landing page
 - `google_apps_script.gs` - Google Apps Script endpoint for Sheets logging
 
 ---
@@ -161,6 +161,21 @@ Non-secret tuning values stay in tracked config. For example, the OLED display t
 
 ---
 
+## Solinst Modbus behavior
+
+By default, the logger now uses a **fixed configured Solinst Modbus ID** instead of scanning the whole startup range.
+
+In `config.h`:
+
+- `WLTS_USE_FIXED_MODBUS_ID = true`
+- `WLTS_FIXED_MODBUS_ID = 1`
+
+If you intentionally want startup scanning again, set `WLTS_USE_FIXED_MODBUS_ID = false` and the code will scan `SCAN_START_ID` through `SCAN_END_ID`.
+
+The RS-485 path also uses explicit Opta-specific pre/post delays and an echo-aware manual Modbus parser in `probe_modbus.ino`.
+
+---
+
 ## Opta LEDs, user button, and display
 
 The sketch includes a practical field UI using the Opta status LEDs and the user button.
@@ -186,8 +201,8 @@ If the board core exposes the expected Opta LED pin aliases, the sketch uses fou
 
 - **Network LED**
   - slow blink: Wi-Fi disconnected / reconnecting
-  - solid on: Wi-Fi connected and no obvious backlog condition
-  - activity/fault patterns may be extended further as upload attempt tracking evolves
+  - solid on: Wi-Fi connected
+  - upload trouble should be interpreted together with `/status`, especially cached upload error state and cooldown
 
 - **Power LED**
   - solid on: solar appears to be charging the battery
@@ -333,9 +348,10 @@ Each successful reading uploads these main values:
 
 The Opta exposes these endpoints over its local web server:
 
-- `/probe` - performs an immediate Solinst probe read and returns JSON
-- `/status` - returns diagnostics and current status
+- `/status` - returns cached, pretty-printed device status JSON
+- `/probe` - performs an immediate live Solinst probe read and returns pretty-printed JSON
 - `/reset` - reboots the Opta
+- any unknown route returns a small HTML landing page with clickable links to `/status` and `/probe`, plus a reset button with browser confirmation
 
 ### `/status` includes
 
@@ -344,11 +360,39 @@ The Opta exposes these endpoints over its local web server:
 - clock validity and sync age
 - Solinst sensor identity
 - last successful probe/upload timestamps
+- cached upload error string and timestamp
+- upload cooldown remaining
+- consecutive upload failures
 - backlog counts
 - INA228 presence/validity
-- live battery and solar voltage/current/power values
+- live battery and solar voltage/current/power values from the last successful probe snapshot
 - approximate battery charge percent
 - boolean solar charging status
+
+### Notes on `/status`
+
+`/status` is intentionally cached/non-blocking. It does **not** trigger a live power-monitor refresh or live Modbus read.
+
+### Notes on `/probe`
+
+`/probe` is intentionally a live operation, so it can still take noticeably longer than `/status` if Modbus retries are happening.
+
+---
+
+## Upload/backlog behavior
+
+Uploads now use cached failure state plus cooldown/backoff so a broken or misdeployed Apps Script endpoint does not get hammered continuously.
+
+### Current behavior
+
+- each attempted reading upload still uses `POST_RETRIES`
+- after repeated failures, the device records the last upload error and timestamp
+- a cooldown is applied before the next upload attempt is allowed
+- the cooldown starts at `UPLOAD_RETRY_COOLDOWN_INITIAL_MS`
+- it backs off up to `UPLOAD_RETRY_COOLDOWN_MAX_MS`
+- backlog flush attempts also respect the cooldown
+
+This makes the logger much less likely to starve the HTTP server or local UI when the remote endpoint is broken.
 
 ---
 
@@ -357,6 +401,7 @@ The Opta exposes these endpoints over its local web server:
 - The logger runs on **even 15-minute UTC boundaries**.
 - The system waits until the clock is valid before scheduled logging begins.
 - If an upload fails, the reading is queued in a small in-memory backlog and retried later.
+- Upload retries are now throttled by cooldown/backoff after repeated failures.
 - The OLED display remains in power-save mode until the user presses the Opta button.
 - Once woken, the display remains on for `DISPLAY_ON_SECONDS_DEFAULT` and then returns to power-save mode.
 
@@ -371,6 +416,7 @@ The Opta exposes these endpoints over its local web server:
 - The INA228 current/power calibration depends on the actual shunt value on your monitor boards.
 - The Opta LED/button UI depends on the board core exposing compatible LED and button pin aliases.
 - The OLED "off" behavior is software power-save, not physical power removal.
+- Cached upload errors are exposed via `/status`, but they are not yet rendered on the OLED.
 
 ---
 
@@ -381,14 +427,16 @@ The Opta exposes these endpoints over its local web server:
 3. Fill in real local values in `secrets_local.h`.
 4. Confirm serial output appears at boot.
 5. Confirm the config summary reports compile-time secrets.
-6. Confirm both INA228 devices are detected at `0x40` and `0x41`.
-7. Confirm the SSD1309 OLED is detected and can wake on button press.
-8. Confirm the Solinst 301 responds on Modbus.
-9. Confirm Wi-Fi connects.
-10. Confirm the Apps Script web app responds.
-11. Confirm data appears in the correct yearly tab in Google Sheets.
-12. Confirm LED behavior matches the expected field UI.
-13. Confirm the display turns off again after the configured timeout.
+6. Confirm the expected fixed Solinst Modbus ID is correct, or intentionally re-enable scanning.
+7. Confirm both INA228 devices are detected at `0x40` and `0x41`.
+8. Confirm the SSD1309 OLED is detected and can wake on button press.
+9. Confirm the Solinst 301 responds on Modbus.
+10. Confirm Wi-Fi connects.
+11. Confirm the Apps Script web app responds.
+12. Confirm data appears in the correct yearly tab in Google Sheets.
+13. Confirm LED behavior matches the expected field UI.
+14. Confirm the display turns off again after the configured timeout.
+15. Confirm `/status` shows sane upload error/cooldown state if the remote endpoint is intentionally broken during testing.
 
 ---
 
@@ -408,6 +456,7 @@ Possible next steps:
 - true coulomb-counted battery SOC
 - richer `/probe` output including INA228 fields
 - true switched-power control for the display instead of software power-save
+- show cached upload/system errors on the OLED
 - better persistent backlog storage
 - OTA update path
 - more robust error classification for Solinst and upload failures
