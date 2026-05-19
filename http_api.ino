@@ -82,6 +82,43 @@ void sendHttpJson(WiFiClient &client, int statusCode, const String &body) {
   client.print(formattedBody);
 }
 
+void sendHttpHtml(WiFiClient &client, int statusCode, const String &body) {
+  client.print("HTTP/1.1 ");
+  client.print(statusCode);
+  if (statusCode == 200) client.println(" OK");
+  else if (statusCode == 404) client.println(" Not Found");
+  else client.println();
+
+  client.println("Content-Type: text/html; charset=utf-8");
+  client.println("Connection: close");
+  client.print("Content-Length: ");
+  client.println(body.length());
+  client.println();
+  client.print(body);
+}
+
+String endpointIndexHtml() {
+  String body;
+  body.reserve(1024);
+
+  body += "<!doctype html><html><head><meta charset=\"utf-8\">";
+  body += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
+  body += "<title>Lake Logger</title>";
+  body += "<style>body{font-family:Arial,sans-serif;margin:2rem;line-height:1.5;}";
+  body += "a,button{font-size:1rem;}ul{padding-left:1.2rem;}li{margin:.7rem 0;}";
+  body += "button{padding:.5rem .8rem;cursor:pointer;}code{background:#f3f3f3;padding:.1rem .3rem;border-radius:4px;}";
+  body += "</style></head><body>";
+  body += "<h1>Solinst Lake Logger</h1>";
+  body += "<p>Available endpoints:</p><ul>";
+  body += "<li><a href=\"/status\">/status</a> - cached device status JSON</li>";
+  body += "<li><a href=\"/probe\">/probe</a> - trigger a live probe and return JSON</li>";
+  body += "<li><button onclick=\"confirmReset()\">/reset</button> - reboot the device</li>";
+  body += "</ul>";
+  body += "<script>function confirmReset(){if(confirm('Reset the lake logger now?')){window.location='/reset';}}</script>";
+  body += "</body></html>";
+  return body;
+}
+
 String probeJson(const ProbeReading &r) {
   String body = "{";
   body += "\"ok\":" + String(r.valid ? "true" : "false") + ",";
@@ -194,9 +231,8 @@ void handleHttpClient() {
     delay(200);
     NVIC_SystemReset();
   } else {
-    Serial.println("HTTP: route not found, sending 404");
-    sendHttpJson(client, 404,
-      "{\"ok\":false,\"error\":\"not found\",\"routes\":[\"/probe\",\"/status\",\"/reset\"]}");
+    Serial.println("HTTP: route not found, sending HTML index");
+    sendHttpHtml(client, 404, endpointIndexHtml());
   }
 
   delay(1);
