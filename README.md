@@ -71,6 +71,11 @@ Those addresses are defined in `config.h`.
 - **battery output monitor** measures the positive feed from the battery/system bus into the logger/load branch
 - **solar input monitor** measures the positive feed from the solar charge controller into the battery side
 
+For the solar monitor, the battery side is the **load** side. To read charging current as positive:
+
+- charge controller positive -> `VIN+`
+- battery positive / battery bus -> `VIN-`
+
 ### OLED display assumptions
 
 The display code currently assumes:
@@ -90,6 +95,165 @@ If your display is strapped for a different I2C address, update the value in `co
 ### Solar charging boolean
 
 `solar_charging_battery` is `true` when the solar INA228 is valid and reports current above a small threshold.
+
+---
+
+## What is Opta-specific?
+
+This project can be ported to another Arduino-class board, but several parts are currently written specifically around the **Arduino Opta WiFi** hardware and core.
+
+### Opta-specific items in the current design
+
+1. **Built-in RS-485 hardware**
+   - The logger assumes the board already has an RS-485 interface available through the Opta APIs and wiring.
+   - `probe_modbus.ino` uses `ArduinoRS485` and timing that were tuned during Opta bring-up.
+
+2. **Built-in Wi-Fi on the Opta WiFi variant**
+   - The project assumes the board can use the `WiFi` stack directly for NTP, the local web server, and HTTPS uploads.
+
+3. **Opta status LEDs**
+   - `ui_status.ino` assumes the board core exposes Opta LED aliases and uses those for heartbeat, sensor, network, and power state indications.
+
+4. **Opta user button**
+   - The OLED wake behavior assumes a board-level user button is available through the Opta core.
+
+5. **Opta RS-485 timing behavior**
+   - The current manual Modbus path documents and works around Opta-specific RS-485 behavior, including TX echo showing up in RX.
+
+6. **Physical integration assumptions**
+   - The README and current wiring assumptions assume the Opta form factor, integrated I/O, and Opta-side I2C/RS-485 access.
+
+### What is mostly portable?
+
+These parts are conceptually portable to many other Arduino-compatible boards:
+
+- JSON payload structure
+- Google Apps Script / Google Sheet logging model
+- INA228 reading logic
+- SSD1309 OLED content and timeout behavior
+- battery estimate / solar charging derived logic
+- backlog and upload cooldown strategy
+- HTTP endpoint behavior
+- secrets/header-based configuration workflow
+
+---
+
+## Porting to a different Arduino board
+
+If you want to support a different board, such as a board that needs an **external RS-485 shield**, **external button**, and **external LEDs**, the main work items are below.
+
+### 1. RS-485 hardware layer
+
+If the target board does not have built-in RS-485, you will need:
+
+- an RS-485 transceiver or shield
+- the correct UART selection for that board
+- driver-enable / receiver-enable control if the shield requires it
+
+What will likely need to change:
+
+- `probe_modbus.ino`
+- possibly `config.h` for different timing values
+- board-specific RS-485 initialization and direction-control logic
+
+Examples of things you may need to adapt:
+
+- which serial port is used
+- whether the RS-485 library supports the board directly
+- whether you must manually drive DE/RE pins
+- whether the board exhibits the same TX echo behavior as the Opta
+
+### 2. Wi-Fi or network stack
+
+If the target board is not an Opta WiFi, you may need to replace or adapt:
+
+- `WiFi`
+- `WiFiUDP`
+- the local `WiFiServer`
+- HTTPS client behavior used by `ArduinoHttpClient`
+
+Possible cases:
+
+- board with built-in Wi-Fi but a different library/API
+- Ethernet-based board instead of Wi-Fi
+- cellular transport instead of Wi-Fi
+
+Files most likely affected:
+
+- `time_sync.ino`
+- `http_api.ino`
+- `google_upload.ino`
+- `config.h`
+
+### 3. LEDs and button input
+
+If the target board does not expose Opta-style LED and button aliases, you will need to map these functions to:
+
+- discrete LEDs on GPIO pins
+- an external momentary pushbutton on a GPIO pin
+
+What will likely need to change:
+
+- `ui_status.ino`
+- any board pin definitions in `config.h`
+
+Recommended adaptation:
+
+- define explicit pin constants for heartbeat LED, sensor LED, network LED, power LED, and user button
+- update the UI code to use those pins instead of Opta-specific aliases
+
+### 4. Display bus/pin mapping
+
+The OLED content logic is portable, but the target board may need different:
+
+- I2C pins
+- I2C instance
+- voltage compatibility checks
+
+If the board uses software I2C or different hardware I2C wiring, `display_oled.ino` and board setup may need adjustment.
+
+### 5. Power / monitor wiring assumptions
+
+The INA228 logic is portable, but on a different board you still need:
+
+- 3.3 V-compatible I2C
+- common ground with the MCU
+- the same current-path orientation assumptions
+
+### 6. Build/package assumptions
+
+The README currently assumes:
+
+- Arduino Opta board package
+- Opta WiFi selected in Arduino IDE
+
+For a different board, those instructions would need to be updated accordingly.
+
+---
+
+## Minimum changes for a non-Opta Arduino with RS-485 shield and external button
+
+If you wanted to move this to a different Arduino-compatible board, the minimum likely changes would be:
+
+1. **Replace the Opta RS-485 assumptions**
+   - adapt `probe_modbus.ino` to the target UART + RS-485 shield wiring
+   - add DE/RE pin handling if required
+
+2. **Replace Opta LED/button dependencies**
+   - map LEDs to GPIO pins, or disable the LED UI
+   - map the display wake button to a normal digital input pin with pull-up/pull-down as needed
+
+3. **Verify network stack compatibility**
+   - confirm `WiFi`, `WiFiServer`, `WiFiSSLClient`, and `ArduinoHttpClient` work on that board
+   - otherwise adapt networking code
+
+4. **Retune timing**
+   - RS-485 delays and response timeout in `config.h` may need adjustment on a different MCU / transceiver combination
+
+5. **Update README/build instructions**
+   - board package
+   - wiring guide
+   - pin map
 
 ---
 
@@ -174,6 +338,8 @@ If you intentionally want startup scanning again, set `WLTS_USE_FIXED_MODBUS_ID 
 
 The RS-485 path also uses explicit Opta-specific pre/post delays and an echo-aware manual Modbus parser in `probe_modbus.ino`.
 
+If you port to a different RS-485 transceiver or board, these settings may need retuning.
+
 ---
 
 ## Opta LEDs, user button, and display
@@ -230,6 +396,8 @@ Important: this is **software display sleep / power-save**, not true hardware po
 
 If the core does **not** expose the expected LED/button pin aliases, the UI logic compiles in a no-op mode and the logger still runs normally.
 
+On a non-Opta board, you would typically replace these board aliases with normal GPIO pin definitions for LEDs and the external button.
+
 ---
 
 ## Required Arduino libraries
@@ -257,6 +425,8 @@ Built-in/core libraries also used:
 Install the correct **Arduino Opta / Mbed OS** board package in Arduino IDE and select the **Arduino Opta WiFi** board before compiling.
 
 Because Opta core releases can change pin alias naming, if the LED/button UI does not compile or does not activate, verify the installed core version and the available LED/button pin aliases for your Opta board package.
+
+If you port to a different board, this entire section should be replaced with that board's package/install/selection instructions.
 
 ---
 
@@ -391,6 +561,7 @@ Uploads now use cached failure state plus cooldown/backoff so a broken or misdep
 - the cooldown starts at `UPLOAD_RETRY_COOLDOWN_INITIAL_MS`
 - it backs off up to `UPLOAD_RETRY_COOLDOWN_MAX_MS`
 - backlog flush attempts also respect the cooldown
+- Google Apps Script redirect-style responses that still indicate a successful write are treated as success to avoid duplicate rows from retries
 
 This makes the logger much less likely to starve the HTTP server or local UI when the remote endpoint is broken.
 
