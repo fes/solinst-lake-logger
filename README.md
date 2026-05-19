@@ -569,7 +569,7 @@ This makes the logger much less likely to starve the HTTP server or local UI whe
 
 ## Logging behavior
 
-- The logger runs on **even 15-minute UTC boundaries**.
+- The logger runs on **hourly UTC boundaries, on the hour**.
 - The system waits until the clock is valid before scheduled logging begins.
 - If an upload fails, the reading is queued in a small in-memory backlog and retried later.
 - Upload retries are now throttled by cooldown/backoff after repeated failures.
