@@ -25,9 +25,7 @@ const HEADERS = [
   'solar_input_power_w',
   'battery_charge_level_pct_approx',
   'solar_charging_battery',
-  'status',
-  'upload_source',
-  'raw_json'
+  'status'
 ];
 
 function doPost(e) {
@@ -71,9 +69,7 @@ function doPost(e) {
       asNumberOrBlank(data.solar_input_power_w),
       asNumberOrBlank(data.battery_charge_level_pct_approx),
       asBooleanOrBlank(data.solar_charging_battery),
-      asString(data.status || 'OK'),
-      'opta_http_post',
-      JSON.stringify(data)
+      asString(data.status || 'OK')
     ];
 
     sheet.appendRow(row);
@@ -125,7 +121,7 @@ function ensureHeaderRow(sheet) {
   }
 
   const existingHeaders = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
-  const needsRewrite = HEADERS.some((header, i) => existingHeaders[i] !== header);
+  const needsRewrite = HEADERS.some((header, i) => existingHeaders[i] !== header) || existingHeaders.length !== HEADERS.length;
 
   if (needsRewrite) {
     sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
