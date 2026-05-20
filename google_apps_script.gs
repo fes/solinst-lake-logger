@@ -45,8 +45,8 @@ function doPost(e) {
     const receivedAtUtc = new Date().toISOString();
 
     const timestampUtc = asString(data.timestamp_utc) || receivedAtUtc;
-    const sheetName = yearSheetNameFromTimestamp(timestampUtc);
-    const sheet = getOrCreateYearSheet(ss, sheetName);
+    const sheetName = monthSheetNameFromTimestamp(timestampUtc);
+    const sheet = getOrCreatePeriodSheet(ss, sheetName);
 
     const row = [
       receivedAtUtc,
@@ -95,7 +95,7 @@ function doGet() {
   });
 }
 
-function getOrCreateYearSheet(ss, sheetName) {
+function getOrCreatePeriodSheet(ss, sheetName) {
   let sheet = ss.getSheetByName(sheetName);
 
   if (!sheet) {
@@ -131,12 +131,12 @@ function ensureHeaderRow(sheet) {
   }
 }
 
-function yearSheetNameFromTimestamp(timestampUtc) {
+function monthSheetNameFromTimestamp(timestampUtc) {
   const d = new Date(timestampUtc);
-  if (isNaN(d.getTime())) {
-    return String(new Date().getUTCFullYear());
-  }
-  return String(d.getUTCFullYear());
+  const validDate = isNaN(d.getTime()) ? new Date() : d;
+  const year = validDate.getUTCFullYear();
+  const month = String(validDate.getUTCMonth() + 1).padStart(2, '0');
+  return year + '-' + month;
 }
 
 function formatHeaderRow(sheet) {
