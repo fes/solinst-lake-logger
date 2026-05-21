@@ -38,6 +38,16 @@ bool initDisplayOnce(bool logFailures) {
   return true;
 }
 
+void reinitializeDisplayForWake() {
+  Serial.println("UI: performing OLED re-init on wake");
+  display.setI2CAddress(DISPLAY_I2C_ADDRESS << 1);
+  display.begin();
+  display.clearBuffer();
+  display.sendBuffer();
+  display.setPowerSave(0);
+  displayAwake = true;
+}
+
 void drawDisplayScreen(const ProbeReading &snapshot) {
   float batteryPct = approximateBatteryChargePercent(snapshot);
   bool charging = solarChargingBatteryNow(snapshot);
@@ -125,8 +135,7 @@ void wakeDisplayForTimeout() {
   displayRefreshPending = true;
 
   if (!displayAwake) {
-    display.setPowerSave(0);
-    displayAwake = true;
+    reinitializeDisplayForWake();
   }
 }
 
