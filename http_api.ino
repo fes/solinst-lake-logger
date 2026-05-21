@@ -38,6 +38,7 @@ void sendHttpJson(WiFiClient &client, int statusCode, const String &body) {
   client.print(statusCode);
   if (statusCode == 200) client.println(" OK");
   else if (statusCode == 404) client.println(" Not Found");
+  else if (statusCode == 400) client.println(" Bad Request");
   else if (statusCode == 500) client.println(" Internal Server Error");
   else client.println();
   client.println("Content-Type: application/json");
@@ -164,27 +165,69 @@ String statusJson() {
   return body;
 }
 
+bool readRequestLine(WiFiClient &client, String &requestLine) {
+  unsigned long start = millis();
+  requestLine = "";
+
+  while (client.connected() && millis() - start < 2000UL) {
+    while (client.available()) {
+      char c = client.read();
+      if (c == '\r') continue;
+      if (c == '\n') {
+        requestLine.trim();
+        if (requestLine.length() == 0) {
+          continue;
+        }
+        return true;
+      }
+      requestLine += c;
+      if (requestLine.length() > 200) {
+        requestLine.trim();
+        return requestLine.length() > 0;
+      }
+    }
+    delay(1);
+  }
+
+  requestLine.trim();
+  return requestLine.length() > 0;
+}
+
+void drainHttpHeaders(WiFiClient &client) {
+  unsigned long start = millis();
+  String line = "";
+
+  while (client.connected() && millis() - start < 4000UL) {
+    while (client.available()) {
+      char c = client.read();
+      if (c == '\r') continue;
+      if (c == '\n') {
+        if (line.length() == 0) {
+          return;
+        }
+        line = "";
+      } else {
+        line += c;
+      }
+    }
+    delay(1);
+  }
+}
+
 void handleHttpClient() {
   WiFiClient client = server.available();
   if (!client) return;
   Serial.println("HTTP: client connected");
+
   String requestLine = "";
-  unsigned long start = millis();
-  while (client.connected() && millis() - start < 2000UL) {
-    if (client.available()) {
-      char c = client.read();
-      if (c == '\n') break;
-      if (c != '\r') requestLine += c;
-    }
+  if (!readRequestLine(client, requestLine)) {
+    Serial.println("HTTP: empty request line, closing client");
+    client.stop();
+    return;
   }
-  while (client.connected() && millis() - start < 4000UL) {
-    if (client.available()) {
-      String line = client.readStringUntil('\n');
-      if (line == "\r" || line.length() == 0) break;
-    } else {
-      delay(1);
-    }
-  }
+
+  drainHttpHeaders(client);
+
   Serial.print("HTTP: request line = ");
   Serial.println(requestLine);
   if (requestLine.startsWith("GET /probe")) {
