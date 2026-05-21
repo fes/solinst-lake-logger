@@ -8,72 +8,38 @@ String prettyJson(const String &compact) {
 
   for (size_t i = 0; i < compact.length(); i++) {
     char c = compact[i];
-
     if (inString) {
       out += c;
-      if (escaping) {
-        escaping = false;
-      } else if (c == '\\') {
-        escaping = true;
-      } else if (c == '"') {
-        inString = false;
-      }
+      if (escaping) escaping = false;
+      else if (c == '\\') escaping = true;
+      else if (c == '"') inString = false;
       continue;
     }
-
     switch (c) {
-      case '"':
-        inString = true;
-        out += c;
-        break;
-
+      case '"': inString = true; out += c; break;
       case '{':
       case '[':
-        out += c;
-        out += '\n';
-        indent++;
-        for (int j = 0; j < indent; j++) out += "  ";
-        break;
-
+        out += c; out += '\n'; indent++; for (int j = 0; j < indent; j++) out += "  "; break;
       case '}':
       case ']':
-        out += '\n';
-        indent = max(0, indent - 1);
-        for (int j = 0; j < indent; j++) out += "  ";
-        out += c;
-        break;
-
+        out += '\n'; indent = max(0, indent - 1); for (int j = 0; j < indent; j++) out += "  "; out += c; break;
       case ',':
-        out += c;
-        out += '\n';
-        for (int j = 0; j < indent; j++) out += "  ";
-        break;
-
-      case ':':
-        out += ": ";
-        break;
-
-      default:
-        if (c != '\n' && c != '\r' && c != '\t') {
-          out += c;
-        }
-        break;
+        out += c; out += '\n'; for (int j = 0; j < indent; j++) out += "  "; break;
+      case ':': out += ": "; break;
+      default: if (c != '\n' && c != '\r' && c != '\t') out += c; break;
     }
   }
-
   return out;
 }
 
 void sendHttpJson(WiFiClient &client, int statusCode, const String &body) {
   String formattedBody = prettyJson(body);
-
   client.print("HTTP/1.1 ");
   client.print(statusCode);
   if (statusCode == 200) client.println(" OK");
   else if (statusCode == 404) client.println(" Not Found");
   else if (statusCode == 500) client.println(" Internal Server Error");
   else client.println();
-
   client.println("Content-Type: application/json");
   client.println("Connection: close");
   client.print("Content-Length: ");
@@ -88,7 +54,6 @@ void sendHttpHtml(WiFiClient &client, int statusCode, const String &body) {
   if (statusCode == 200) client.println(" OK");
   else if (statusCode == 404) client.println(" Not Found");
   else client.println();
-
   client.println("Content-Type: text/html; charset=utf-8");
   client.println("Connection: close");
   client.print("Content-Length: ");
@@ -100,44 +65,43 @@ void sendHttpHtml(WiFiClient &client, int statusCode, const String &body) {
 String endpointIndexHtml() {
   String body;
   body.reserve(1024);
-
   body += "<!doctype html><html><head><meta charset=\"utf-8\">";
   body += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
   body += "<title>Lake Logger</title>";
-  body += "<style>body{font-family:Arial,sans-serif;margin:2rem;line-height:1.5;}";
-  body += "a,button{font-size:1rem;}ul{padding-left:1.2rem;}li{margin:.7rem 0;}";
-  body += "button{padding:.5rem .8rem;cursor:pointer;}code{background:#f3f3f3;padding:.1rem .3rem;border-radius:4px;}";
-  body += "</style></head><body>";
-  body += "<h1>Solinst Lake Logger</h1>";
-  body += "<p>Available endpoints:</p><ul>";
+  body += "<style>body{font-family:Arial,sans-serif;margin:2rem;line-height:1.5;}a,button{font-size:1rem;}ul{padding-left:1.2rem;}li{margin:.7rem 0;}button{padding:.5rem .8rem;cursor:pointer;}code{background:#f3f3f3;padding:.1rem .3rem;border-radius:4px;}</style></head><body>";
+  body += "<h1>Solinst Lake Logger</h1><p>Available endpoints:</p><ul>";
   body += "<li><a href=\"/status\">/status</a> - cached device status JSON</li>";
   body += "<li><a href=\"/probe\">/probe</a> - trigger a live probe and return JSON</li>";
   body += "<li><button onclick=\"confirmReset()\">/reset</button> - reboot the device</li>";
-  body += "</ul>";
-  body += "<script>function confirmReset(){if(confirm('Reset the lake logger now?')){window.location='/reset';}}</script>";
-  body += "</body></html>";
+  body += "</ul><script>function confirmReset(){if(confirm('Reset the lake logger now?')){window.location='/reset';}}</script></body></html>";
   return body;
 }
 
 String probeJson(const ProbeReading &r) {
+  float batteryChargePct = approximateBatteryChargePercent(r);
+  bool solarChargingNow = solarChargingBatteryNow(r);
   String body = "{";
   body += "\"ok\":" + String(r.valid ? "true" : "false") + ",";
   body += "\"timestamp_utc\":\"" + jsonEscape(r.timestampUtc) + "\",";
-  body += "\"water_level_m\":";
-  body += (r.valid ? String(r.level, 4) : String("null"));
+  body += "\"water_level_m\":" + (r.valid ? String(r.level, 4) : String("null")) + ",";
+  body += "\"temperature_c\":" + (r.valid ? String(r.temperature, 3) : String("null")) + ",";
+  appendPowerMonitorJson(body, "battery_output", r.batteryOutput);
+  appendPowerMonitorJson(body, "solar_input", r.solarInput);
+  body += "\"battery_charge_level_pct_approx\":";
+  body += (isfinite(batteryChargePct) ? String(batteryChargePct, 1) : String("null"));
   body += ",";
-  body += "\"temperature_c\":";
-  body += (r.valid ? String(r.temperature, 3) : String("null"));
-  body += ",";
+  body += "\"solar_charging_battery\":" + String(solarChargingNow ? "true" : "false") + ",";
   body += "\"units\":{\"level\":\"m\",\"temperature\":\"C\"}";
   body += "}";
   return body;
 }
 
 String statusJson() {
-  const ProbeReading &powerSnapshot = lastProbeReading;
-  float batteryChargePct = approximateBatteryChargePercent(powerSnapshot);
-  bool solarChargingNow = solarChargingBatteryNow(powerSnapshot);
+  ProbeReading cachedProbeSnapshot = lastProbeReading;
+  ProbeReading livePowerSnapshot = lastProbeReading;
+  readPowerMonitors(livePowerSnapshot);
+  float batteryChargePct = approximateBatteryChargePercent(livePowerSnapshot);
+  bool solarChargingNow = solarChargingBatteryNow(livePowerSnapshot);
   unsigned long uploadCooldownRemainingMs = (millis() < nextUploadAllowedMs) ? (nextUploadAllowedMs - millis()) : 0UL;
   unsigned long displayWakeRemainingMs = (displayAwake && millis() < displayWakeUntilMs) ? (displayWakeUntilMs - millis()) : 0UL;
 
@@ -160,6 +124,11 @@ String statusJson() {
   body += "\"display_present\":" + String(displayPresent ? "true" : "false") + ",";
   body += "\"display_awake\":" + String(displayAwake ? "true" : "false") + ",";
   body += "\"display_wake_remaining_ms\":" + String(displayWakeRemainingMs) + ",";
+  body += "\"last_display_wake_request_utc\":\"" + jsonEscape(lastDisplayWakeRequestUtc()) + "\",";
+  body += "\"last_display_wake_request_age\":\"" + jsonEscape(lastDisplayWakeRequestAge()) + "\",";
+  body += "\"last_display_refresh_utc\":\"" + jsonEscape(lastDisplayRefreshUtc()) + "\",";
+  body += "\"last_display_refresh_age\":\"" + jsonEscape(lastDisplayRefreshAge()) + "\",";
+  body += "\"display_refresh_count\":" + String(displayRefreshCount()) + ",";
   body += "\"user_button_present\":" + String(userButtonPresent ? "true" : "false") + ",";
   body += "\"last_user_button_press_utc\":\"" + jsonEscape(lastUserButtonPressUtc) + "\",";
   body += "\"last_user_button_press_age\":\"" + jsonEscape(millisAgeString(lastUserButtonPressMs)) + "\",";
@@ -182,10 +151,11 @@ String statusJson() {
   body += "\"backlog_count\":" + String(backlogCount) + ",";
   body += "\"dropped_backlog_entries\":" + String(droppedBacklogEntries) + ",";
   body += "\"power_monitor_init_status\":\"" + jsonEscape(powerMonitorInitStatus) + "\",";
-
-  appendPowerMonitorJson(body, "battery_output", powerSnapshot.batteryOutput);
-  appendPowerMonitorJson(body, "solar_input", powerSnapshot.solarInput);
-
+  body += "\"cached_probe_valid\":" + String(cachedProbeSnapshot.valid ? "true" : "false") + ",";
+  appendPowerMonitorJson(body, "cached_probe_battery_output", cachedProbeSnapshot.batteryOutput);
+  appendPowerMonitorJson(body, "cached_probe_solar_input", cachedProbeSnapshot.solarInput);
+  appendPowerMonitorJson(body, "live_battery_output", livePowerSnapshot.batteryOutput);
+  appendPowerMonitorJson(body, "live_solar_input", livePowerSnapshot.solarInput);
   body += "\"battery_charge_level_pct_approx\":";
   body += (isfinite(batteryChargePct) ? String(batteryChargePct, 1) : String("null"));
   body += ",";
@@ -197,12 +167,9 @@ String statusJson() {
 void handleHttpClient() {
   WiFiClient client = server.available();
   if (!client) return;
-
   Serial.println("HTTP: client connected");
-
   String requestLine = "";
   unsigned long start = millis();
-
   while (client.connected() && millis() - start < 2000UL) {
     if (client.available()) {
       char c = client.read();
@@ -210,7 +177,6 @@ void handleHttpClient() {
       if (c != '\r') requestLine += c;
     }
   }
-
   while (client.connected() && millis() - start < 4000UL) {
     if (client.available()) {
       String line = client.readStringUntil('\n');
@@ -219,10 +185,8 @@ void handleHttpClient() {
       delay(1);
     }
   }
-
   Serial.print("HTTP: request line = ");
   Serial.println(requestLine);
-
   if (requestLine.startsWith("GET /probe")) {
     Serial.println("HTTP: handling /probe");
     ProbeReading r;
@@ -247,7 +211,6 @@ void handleHttpClient() {
     Serial.println("HTTP: route not found, sending HTML index");
     sendHttpHtml(client, 404, endpointIndexHtml());
   }
-
   delay(1);
   client.stop();
   Serial.println("HTTP: client closed");
