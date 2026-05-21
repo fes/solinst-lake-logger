@@ -12,6 +12,32 @@ bool i2cDevicePresent(uint8_t address) {
   return Wire.endTransmission() == 0;
 }
 
+bool initDisplayOnce(bool logFailures) {
+  if (!i2cDevicePresent(DISPLAY_I2C_ADDRESS)) {
+    displayPresent = false;
+    displayAwake = false;
+    displayWakeUntilMs = 0;
+    displayRefreshPending = false;
+    if (logFailures) {
+      Serial.print("SSD1309 display not detected at 0x");
+      Serial.println(DISPLAY_I2C_ADDRESS, HEX);
+    }
+    return false;
+  }
+
+  display.setI2CAddress(DISPLAY_I2C_ADDRESS << 1);
+  display.begin();
+  display.setPowerSave(1);
+  display.clearBuffer();
+  display.sendBuffer();
+  displayPresent = true;
+  displayAwake = false;
+  displayWakeUntilMs = 0;
+  displayRefreshPending = false;
+  Serial.println("SSD1309 display initialized in power-save mode");
+  return true;
+}
+
 void drawDisplayScreen(const ProbeReading &snapshot) {
   float batteryPct = approximateBatteryChargePercent(snapshot);
   bool charging = solarChargingBatteryNow(snapshot);
@@ -66,37 +92,37 @@ ProbeReading currentDisplaySnapshot() {
 
 bool initDisplay() {
   Wire.begin();
+  delay(20);
 
-  if (!i2cDevicePresent(DISPLAY_I2C_ADDRESS)) {
-    displayPresent = false;
-    displayAwake = false;
-    displayWakeUntilMs = 0;
-    displayRefreshPending = false;
-    Serial.print("SSD1309 display not detected at 0x");
-    Serial.println(DISPLAY_I2C_ADDRESS, HEX);
-    return false;
+  for (int attempt = 1; attempt <= 5; attempt++) {
+    if (initDisplayOnce(attempt == 5)) {
+      if (attempt > 1) {
+        Serial.print("SSD1309 display detected after retry ");
+        Serial.println(attempt);
+      }
+      return true;
+    }
+    delay(100);
   }
 
-  display.setI2CAddress(DISPLAY_I2C_ADDRESS << 1);
-  display.begin();
-  display.setPowerSave(1);
-  display.clearBuffer();
-  display.sendBuffer();
-  displayPresent = true;
-  displayAwake = false;
-  displayWakeUntilMs = 0;
-  displayRefreshPending = false;
-  Serial.println("SSD1309 display initialized in power-save mode");
-  return true;
+  return false;
 }
 
 void wakeDisplayForTimeout() {
-  if (!displayPresent) return;
+  displayLastWakeRequestMs = millis();
+  displayLastWakeRequestUtc = nowUtcString();
+
+  if (!displayPresent) {
+    Serial.println("UI: display not present, retrying display init");
+    if (!initDisplay()) {
+      Serial.println("UI: display init retry failed");
+      return;
+    }
+    Serial.println("UI: display re-detected on wake request");
+  }
 
   displayWakeUntilMs = millis() + (displayOnSeconds * 1000UL);
   displayRefreshPending = true;
-  displayLastWakeRequestMs = millis();
-  displayLastWakeRequestUtc = nowUtcString();
 
   if (!displayAwake) {
     display.setPowerSave(0);
