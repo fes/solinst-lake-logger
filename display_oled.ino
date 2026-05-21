@@ -1,6 +1,11 @@
 namespace {
 
 bool displayRefreshPending = false;
+unsigned long displayLastWakeRequestMs = 0;
+unsigned long displayLastRefreshMs = 0;
+String displayLastWakeRequestUtc = "";
+String displayLastRefreshUtc = "";
+uint32_t displayRefreshCountLocal = 0;
 
 bool i2cDevicePresent(uint8_t address) {
   Wire.beginTransmission(address);
@@ -90,6 +95,8 @@ void wakeDisplayForTimeout() {
 
   displayWakeUntilMs = millis() + (displayOnSeconds * 1000UL);
   displayRefreshPending = true;
+  displayLastWakeRequestMs = millis();
+  displayLastWakeRequestUtc = nowUtcString();
 
   if (!displayAwake) {
     display.setPowerSave(0);
@@ -115,6 +122,9 @@ void updateDisplay() {
 
   lastRefreshMs = nowMs;
   displayRefreshPending = false;
+  displayLastRefreshMs = nowMs;
+  displayLastRefreshUtc = nowUtcString();
+  displayRefreshCountLocal++;
   drawDisplayScreen(currentDisplaySnapshot());
 }
 
@@ -125,4 +135,24 @@ void sleepDisplay() {
   display.setPowerSave(1);
   displayAwake = false;
   displayRefreshPending = false;
+}
+
+String lastDisplayWakeRequestUtc() {
+  return displayLastWakeRequestUtc;
+}
+
+String lastDisplayRefreshUtc() {
+  return displayLastRefreshUtc;
+}
+
+String lastDisplayWakeRequestAge() {
+  return millisAgeString(displayLastWakeRequestMs);
+}
+
+String lastDisplayRefreshAge() {
+  return millisAgeString(displayLastRefreshMs);
+}
+
+uint32_t displayRefreshCount() {
+  return displayRefreshCountLocal;
 }
