@@ -108,6 +108,8 @@ void initUserInterface() {
     writeUiLed(POWER_LED_PIN, false);
   }
 
+  userButtonPresent = UI_HAS_USER_BUTTON;
+
   if (UI_HAS_USER_BUTTON) {
     pinMode(USER_BUTTON_PIN, INPUT_PULLUP);
     Serial.println("UI: user button enabled");
@@ -149,6 +151,8 @@ void handleUserButton() {
   if (physicalPressed != debouncedPressed) {
     debouncedPressed = physicalPressed;
     if (debouncedPressed) {
+      lastUserButtonPressMs = nowMs;
+      lastUserButtonPressUtc = nowUtcString();
       Serial.println("UI: button press detected, scheduling display wake");
       wakeDisplayForTimeout();
     }
