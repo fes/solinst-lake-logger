@@ -226,3 +226,8 @@ bool initDisplay();
 void wakeDisplayForTimeout();
 void updateDisplay();
 void sleepDisplay();
+String lastDisplayWakeRequestUtc();
+String lastDisplayRefreshUtc();
+String lastDisplayWakeRequestAge();
+String lastDisplayRefreshAge();
+uint32_t displayRefreshCount();
