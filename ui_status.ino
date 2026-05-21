@@ -110,6 +110,9 @@ void initUserInterface() {
 
   if (UI_HAS_USER_BUTTON) {
     pinMode(USER_BUTTON_PIN, INPUT_PULLUP);
+    Serial.println("UI: user button enabled");
+  } else {
+    Serial.println("UI: user button not available in this board core");
   }
 }
 
@@ -146,6 +149,7 @@ void handleUserButton() {
   if (physicalPressed != debouncedPressed) {
     debouncedPressed = physicalPressed;
     if (debouncedPressed) {
+      Serial.println("UI: button press detected, scheduling display wake");
       wakeDisplayForTimeout();
     }
   }
