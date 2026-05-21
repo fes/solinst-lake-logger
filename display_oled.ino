@@ -1,5 +1,7 @@
 namespace {
 
+bool displayRefreshPending = false;
+
 bool i2cDevicePresent(uint8_t address) {
   Wire.beginTransmission(address);
   return Wire.endTransmission() == 0;
@@ -49,7 +51,6 @@ void drawDisplayScreen(const ProbeReading &snapshot) {
 
 ProbeReading currentDisplaySnapshot() {
   ProbeReading snapshot = lastProbeReading;
-  readPowerMonitors(snapshot);
   if (!snapshot.valid) {
     snapshot.timestampUtc = nowUtcString();
   }
@@ -65,6 +66,7 @@ bool initDisplay() {
     displayPresent = false;
     displayAwake = false;
     displayWakeUntilMs = 0;
+    displayRefreshPending = false;
     Serial.print("SSD1309 display not detected at 0x");
     Serial.println(DISPLAY_I2C_ADDRESS, HEX);
     return false;
@@ -78,6 +80,7 @@ bool initDisplay() {
   displayPresent = true;
   displayAwake = false;
   displayWakeUntilMs = 0;
+  displayRefreshPending = false;
   Serial.println("SSD1309 display initialized in power-save mode");
   return true;
 }
@@ -86,11 +89,12 @@ void wakeDisplayForTimeout() {
   if (!displayPresent) return;
 
   displayWakeUntilMs = millis() + (displayOnSeconds * 1000UL);
+  displayRefreshPending = true;
+
   if (!displayAwake) {
     display.setPowerSave(0);
     displayAwake = true;
   }
-  updateDisplay();
 }
 
 void updateDisplay() {
@@ -105,11 +109,12 @@ void updateDisplay() {
     return;
   }
 
-  if ((nowMs - lastRefreshMs) < DISPLAY_REFRESH_INTERVAL_MS) {
+  if (!displayRefreshPending && (nowMs - lastRefreshMs) < DISPLAY_REFRESH_INTERVAL_MS) {
     return;
   }
 
   lastRefreshMs = nowMs;
+  displayRefreshPending = false;
   drawDisplayScreen(currentDisplaySnapshot());
 }
 
@@ -119,4 +124,5 @@ void sleepDisplay() {
   display.sendBuffer();
   display.setPowerSave(1);
   displayAwake = false;
+  displayRefreshPending = false;
 }
