@@ -139,6 +139,7 @@ String statusJson() {
   float batteryChargePct = approximateBatteryChargePercent(powerSnapshot);
   bool solarChargingNow = solarChargingBatteryNow(powerSnapshot);
   unsigned long uploadCooldownRemainingMs = (millis() < nextUploadAllowedMs) ? (nextUploadAllowedMs - millis()) : 0UL;
+  unsigned long displayWakeRemainingMs = (displayAwake && millis() < displayWakeUntilMs) ? (displayWakeUntilMs - millis()) : 0UL;
 
   String body = "{";
   body += "\"device_id\":\"" + jsonEscape(String(DEVICE_ID)) + "\",";
@@ -152,10 +153,22 @@ String statusJson() {
   body += "\"last_ntp_sync_age\":\"" + jsonEscape(millisAgeString(lastNtpSyncMs)) + "\",";
   body += "\"sensor_found\":" + String(detectedSensorId != 0 ? "true" : "false") + ",";
   body += "\"modbus_id\":" + String(detectedSensorId) + ",";
+  body += "\"configured_fixed_modbus_id_enabled\":" + String(WLTS_USE_FIXED_MODBUS_ID ? "true" : "false") + ",";
+  body += "\"configured_fixed_modbus_id\":" + String(WLTS_FIXED_MODBUS_ID) + ",";
   body += "\"serial_number\":\"" + String(detectedIdentity.serialNumber) + "\",";
   body += "\"firmware\":\"" + String(detectedIdentity.fwMajor) + "." + String(detectedIdentity.fwMinor) + "\",";
+  body += "\"display_present\":" + String(displayPresent ? "true" : "false") + ",";
+  body += "\"display_awake\":" + String(displayAwake ? "true" : "false") + ",";
+  body += "\"display_wake_remaining_ms\":" + String(displayWakeRemainingMs) + ",";
+  body += "\"user_button_present\":" + String(userButtonPresent ? "true" : "false") + ",";
+  body += "\"last_user_button_press_utc\":\"" + jsonEscape(lastUserButtonPressUtc) + "\",";
+  body += "\"last_user_button_press_age\":\"" + jsonEscape(millisAgeString(lastUserButtonPressMs)) + "\",";
   body += "\"last_successful_probe_read_utc\":\"" + jsonEscape(lastSuccessfulProbeReadUtc) + "\",";
   body += "\"last_successful_probe_read_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulProbeReadMs)) + "\",";
+  body += "\"last_successful_battery_output_read_utc\":\"" + jsonEscape(lastSuccessfulBatteryOutputReadUtc) + "\",";
+  body += "\"last_successful_battery_output_read_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulBatteryOutputReadMs)) + "\",";
+  body += "\"last_successful_solar_input_read_utc\":\"" + jsonEscape(lastSuccessfulSolarInputReadUtc) + "\",";
+  body += "\"last_successful_solar_input_read_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulSolarInputReadMs)) + "\",";
   body += "\"last_successful_upload_utc\":\"" + jsonEscape(lastSuccessfulUploadUtc) + "\",";
   body += "\"last_successful_upload_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulUploadMs)) + "\",";
   body += "\"last_upload_error_utc\":\"" + jsonEscape(lastUploadErrorUtc) + "\",";
