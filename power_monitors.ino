@@ -28,7 +28,8 @@ bool initOnePowerMonitor(Adafruit_INA228 &monitor, uint8_t address, const char *
   return true;
 }
 
-void readOnePowerMonitor(Adafruit_INA228 &monitor, bool present, PowerMonitorSnapshot &snapshot) {
+void readOnePowerMonitor(Adafruit_INA228 &monitor, bool present, PowerMonitorSnapshot &snapshot,
+                         unsigned long &lastSuccessMs, String &lastSuccessUtc) {
   snapshot.present = present;
   snapshot.valid = false;
   snapshot.busVoltageV = NAN;
@@ -47,6 +48,11 @@ void readOnePowerMonitor(Adafruit_INA228 &monitor, bool present, PowerMonitorSna
   snapshot.currentA = currentA;
   snapshot.powerW = powerW;
   snapshot.valid = isfinite(busVoltageV) && isfinite(currentA) && isfinite(powerW);
+
+  if (snapshot.valid) {
+    lastSuccessMs = millis();
+    lastSuccessUtc = nowUtcString();
+  }
 }
 
 } // namespace
@@ -78,8 +84,10 @@ bool initPowerMonitors() {
 }
 
 void readPowerMonitors(ProbeReading &reading) {
-  readOnePowerMonitor(batteryOutputMonitor, batteryOutputMonitorPresent, reading.batteryOutput);
-  readOnePowerMonitor(solarInputMonitor, solarInputMonitorPresent, reading.solarInput);
+  readOnePowerMonitor(batteryOutputMonitor, batteryOutputMonitorPresent, reading.batteryOutput,
+                      lastSuccessfulBatteryOutputReadMs, lastSuccessfulBatteryOutputReadUtc);
+  readOnePowerMonitor(solarInputMonitor, solarInputMonitorPresent, reading.solarInput,
+                      lastSuccessfulSolarInputReadMs, lastSuccessfulSolarInputReadUtc);
 }
 
 void printPowerMonitorSummary() {
