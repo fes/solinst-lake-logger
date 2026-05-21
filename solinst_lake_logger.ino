@@ -33,6 +33,15 @@ void setup() {
   connectWiFi();
   syncClockFromNtp();
 
+  if (detectedSensorId != 0 && isClockValid()) {
+    ProbeReading startupReading;
+    if (probeNow(startupReading)) {
+      Serial.println("Startup probe captured initial cached reading");
+    } else {
+      Serial.println("Startup probe failed; display will wait for later data");
+    }
+  }
+
   if (WiFi.status() == WL_CONNECTED) {
     server.begin();
     Serial.print("HTTP server started at http://");
