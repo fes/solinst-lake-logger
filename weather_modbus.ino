@@ -44,11 +44,24 @@ void readWeatherForReading(ProbeReading &reading) {
   readWeatherNow(reading.weather);
 }
 
+void appendFloatOrNull(String &body, float value, uint8_t decimals) {
+  body += isfinite(value) ? String(value, decimals) : String("null");
+}
+
 void appendWeatherJson(String &body, const char *prefix, const WeatherReading &weather) {
   body += "\"" + String(prefix) + "_enabled\":" + String(weather.enabled ? "true" : "false") + ",";
   body += "\"" + String(prefix) + "_present\":" + String(weather.present ? "true" : "false") + ",";
   body += "\"" + String(prefix) + "_valid\":" + String(weather.valid ? "true" : "false") + ",";
   body += "\"" + String(prefix) + "_modbus_id\":" + String(weather.modbusId) + ",";
   body += "\"" + String(prefix) + "_read_utc\":\"" + jsonEscape(weather.readUtc) + "\",";
+
+  body += "\"" + String(prefix) + "_air_temperature_c\":"; appendFloatOrNull(body, weather.airTemperatureC, 2); body += ",";
+  body += "\"" + String(prefix) + "_relative_humidity_pct\":"; appendFloatOrNull(body, weather.relativeHumidityPct, 2); body += ",";
+  body += "\"" + String(prefix) + "_barometric_pressure_hpa\":"; appendFloatOrNull(body, weather.barometricPressureHpa, 2); body += ",";
+  body += "\"" + String(prefix) + "_wind_speed_m_s\":"; appendFloatOrNull(body, weather.windSpeedMs, 2); body += ",";
+  body += "\"" + String(prefix) + "_wind_direction_deg\":"; appendFloatOrNull(body, weather.windDirectionDeg, 1); body += ",";
+  body += "\"" + String(prefix) + "_rainfall_mm\":"; appendFloatOrNull(body, weather.rainfallMm, 2); body += ",";
+  body += "\"" + String(prefix) + "_light_lux\":"; appendFloatOrNull(body, weather.lightLux, 1); body += ",";
+
   body += "\"" + String(prefix) + "_last_error\":\"" + jsonEscape(weather.lastError) + "\",";
 }
