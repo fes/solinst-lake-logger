@@ -51,6 +51,14 @@ constexpr unsigned long WLTS_RESPONSE_TIMEOUT_MS = 1500UL;
 constexpr uint8_t SCAN_START_ID = 1;
 constexpr uint8_t SCAN_END_ID   = 10;
 
+// Optional DFRobot 7-in-1 RS-485/Modbus weather sensor.
+// Keep disabled until the exact register map/scaling is implemented.
+constexpr bool WEATHER_SENSOR_ENABLED = false;
+constexpr uint8_t WEATHER_MODBUS_ID = 2;
+constexpr uint32_t WEATHER_BAUD = WLTS_BAUD;
+constexpr auto WEATHER_SERIAL_CFG = WLTS_SERIAL_CFG;
+constexpr bool WEATHER_USE_SAME_RS485_BUS = true;
+
 constexpr int READ_RETRIES = 4;
 constexpr unsigned long INITIAL_BACKOFF_MS = 250;
 constexpr unsigned long MAX_BACKOFF_MS     = 4000;
@@ -93,6 +101,22 @@ struct PowerMonitorSnapshot {
   float powerW = NAN;
 };
 
+struct WeatherReading {
+  bool enabled = WEATHER_SENSOR_ENABLED;
+  bool present = false;
+  bool valid = false;
+  uint8_t modbusId = WEATHER_MODBUS_ID;
+  String readUtc = "";
+  float airTemperatureC = NAN;
+  float relativeHumidityPct = NAN;
+  float barometricPressureHpa = NAN;
+  float windSpeedMs = NAN;
+  float windDirectionDeg = NAN;
+  float rainfallMm = NAN;
+  float lightLux = NAN;
+  String lastError = "";
+};
+
 struct ProbeReading {
   String timestampUtc;
   float level = NAN;
@@ -100,6 +124,7 @@ struct ProbeReading {
   bool valid = false;
   PowerMonitorSnapshot batteryOutput;
   PowerMonitorSnapshot solarInput;
+  WeatherReading weather;
 };
 
 WiFiServer server(HTTP_PORT);
@@ -117,6 +142,15 @@ unsigned long lastSuccessfulBatteryOutputReadMs = 0;
 unsigned long lastSuccessfulSolarInputReadMs = 0;
 String lastSuccessfulBatteryOutputReadUtc = "";
 String lastSuccessfulSolarInputReadUtc = "";
+
+bool weatherSensorPresent = false;
+bool weatherSensorValid = false;
+String weatherSensorInitStatus = "not initialized";
+unsigned long lastWeatherAttemptMs = 0;
+unsigned long lastSuccessfulWeatherReadMs = 0;
+String lastSuccessfulWeatherReadUtc = "";
+String lastWeatherError = "";
+String lastWeatherErrorUtc = "";
 
 U8G2_SSD1309_128X64_NONAME0_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE);
 bool displayPresent = false;
@@ -190,6 +224,11 @@ void printPowerMonitorSummary();
 float approximateBatteryChargePercent(const ProbeReading &reading);
 bool solarChargingBatteryNow(const ProbeReading &reading);
 void appendPowerMonitorJson(String &body, const char *prefix, const PowerMonitorSnapshot &snapshot);
+
+void initWeatherSensor();
+bool readWeatherNow(WeatherReading &weather);
+void readWeatherForReading(ProbeReading &reading);
+void appendWeatherJson(String &body, const char *prefix, const WeatherReading &weather);
 
 bool readInputRegister(uint8_t slaveId, uint16_t reg, uint16_t &value);
 bool readInputRegisterWithRetry(uint8_t slaveId, uint16_t reg, uint16_t &value);
