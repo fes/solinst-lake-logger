@@ -25,6 +25,19 @@ const HEADERS = [
   'solar_input_power_w',
   'battery_charge_level_pct_approx',
   'solar_charging_battery',
+  'weather_enabled',
+  'weather_present',
+  'weather_valid',
+  'weather_modbus_id',
+  'weather_read_utc',
+  'weather_air_temperature_c',
+  'weather_relative_humidity_pct',
+  'weather_barometric_pressure_hpa',
+  'weather_wind_speed_m_s',
+  'weather_wind_direction_deg',
+  'weather_rainfall_mm',
+  'weather_light_lux',
+  'weather_last_error',
   'status'
 ];
 
@@ -47,31 +60,46 @@ function doPost(e) {
     const timestampUtc = asString(data.timestamp_utc) || receivedAtUtc;
     const sheetName = monthSheetNameFromTimestamp(timestampUtc);
     const sheet = getOrCreatePeriodSheet(ss, sheetName);
+    const headers = ensureHeaderRow(sheet);
 
-    const row = [
-      receivedAtUtc,
-      timestampUtc,
-      asString(data.device_id),
-      asIntOrBlank(data.modbus_id),
-      asString(data.serial_number),
-      asString(data.firmware),
-      asNumberOrBlank(data.water_level_m),
-      asNumberOrBlank(data.temperature_c),
-      asBooleanOrBlank(data.battery_output_monitor_present),
-      asBooleanOrBlank(data.battery_output_monitor_valid),
-      asNumberOrBlank(data.battery_output_voltage_v),
-      asNumberOrBlank(data.battery_output_current_a),
-      asNumberOrBlank(data.battery_output_power_w),
-      asBooleanOrBlank(data.solar_input_monitor_present),
-      asBooleanOrBlank(data.solar_input_monitor_valid),
-      asNumberOrBlank(data.solar_input_voltage_v),
-      asNumberOrBlank(data.solar_input_current_a),
-      asNumberOrBlank(data.solar_input_power_w),
-      asNumberOrBlank(data.battery_charge_level_pct_approx),
-      asBooleanOrBlank(data.solar_charging_battery),
-      asString(data.status || 'OK')
-    ];
+    const valuesByHeader = {
+      received_at_utc: receivedAtUtc,
+      timestamp_utc: timestampUtc,
+      device_id: asString(data.device_id),
+      modbus_id: asIntOrBlank(data.modbus_id),
+      serial_number: asString(data.serial_number),
+      firmware: asString(data.firmware),
+      water_level_m: asNumberOrBlank(data.water_level_m),
+      temperature_c: asNumberOrBlank(data.temperature_c),
+      battery_output_monitor_present: asBooleanOrBlank(data.battery_output_monitor_present),
+      battery_output_monitor_valid: asBooleanOrBlank(data.battery_output_monitor_valid),
+      battery_output_voltage_v: asNumberOrBlank(data.battery_output_voltage_v),
+      battery_output_current_a: asNumberOrBlank(data.battery_output_current_a),
+      battery_output_power_w: asNumberOrBlank(data.battery_output_power_w),
+      solar_input_monitor_present: asBooleanOrBlank(data.solar_input_monitor_present),
+      solar_input_monitor_valid: asBooleanOrBlank(data.solar_input_monitor_valid),
+      solar_input_voltage_v: asNumberOrBlank(data.solar_input_voltage_v),
+      solar_input_current_a: asNumberOrBlank(data.solar_input_current_a),
+      solar_input_power_w: asNumberOrBlank(data.solar_input_power_w),
+      battery_charge_level_pct_approx: asNumberOrBlank(data.battery_charge_level_pct_approx),
+      solar_charging_battery: asBooleanOrBlank(data.solar_charging_battery),
+      weather_enabled: asBooleanOrBlank(data.weather_enabled),
+      weather_present: asBooleanOrBlank(data.weather_present),
+      weather_valid: asBooleanOrBlank(data.weather_valid),
+      weather_modbus_id: asIntOrBlank(data.weather_modbus_id),
+      weather_read_utc: asString(data.weather_read_utc),
+      weather_air_temperature_c: asNumberOrBlank(data.weather_air_temperature_c),
+      weather_relative_humidity_pct: asNumberOrBlank(data.weather_relative_humidity_pct),
+      weather_barometric_pressure_hpa: asNumberOrBlank(data.weather_barometric_pressure_hpa),
+      weather_wind_speed_m_s: asNumberOrBlank(data.weather_wind_speed_m_s),
+      weather_wind_direction_deg: asNumberOrBlank(data.weather_wind_direction_deg),
+      weather_rainfall_mm: asNumberOrBlank(data.weather_rainfall_mm),
+      weather_light_lux: asNumberOrBlank(data.weather_light_lux),
+      weather_last_error: asString(data.weather_last_error),
+      status: asString(data.status || 'OK')
+    };
 
+    const row = headers.map(header => valuesByHeader[header] !== undefined ? valuesByHeader[header] : '');
     sheet.appendRow(row);
 
     return jsonResponse({
@@ -104,10 +132,10 @@ function getOrCreatePeriodSheet(ss, sheetName) {
     formatHeaderRow(sheet);
     freezeHeaderRow(sheet);
     autoResizeColumns(sheet);
-  } else {
-    ensureHeaderRow(sheet);
+    return sheet;
   }
 
+  ensureHeaderRow(sheet);
   return sheet;
 }
 
@@ -117,18 +145,31 @@ function ensureHeaderRow(sheet) {
     formatHeaderRow(sheet);
     freezeHeaderRow(sheet);
     autoResizeColumns(sheet);
-    return;
+    return HEADERS.slice();
   }
 
-  const existingHeaders = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0];
-  const needsRewrite = HEADERS.some((header, i) => existingHeaders[i] !== header) || existingHeaders.length !== HEADERS.length;
+  let existingHeaders = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0]
+    .map(h => String(h || '').trim());
 
-  if (needsRewrite) {
+  if (existingHeaders.length === 1 && existingHeaders[0] === '') {
     sheet.getRange(1, 1, 1, HEADERS.length).setValues([HEADERS]);
     formatHeaderRow(sheet);
     freezeHeaderRow(sheet);
     autoResizeColumns(sheet);
+    return HEADERS.slice();
   }
+
+  const missingHeaders = HEADERS.filter(header => existingHeaders.indexOf(header) === -1);
+  if (missingHeaders.length > 0) {
+    const startColumn = existingHeaders.length + 1;
+    sheet.getRange(1, startColumn, 1, missingHeaders.length).setValues([missingHeaders]);
+    existingHeaders = existingHeaders.concat(missingHeaders);
+    formatHeaderRow(sheet);
+    freezeHeaderRow(sheet);
+    autoResizeColumns(sheet);
+  }
+
+  return existingHeaders;
 }
 
 function monthSheetNameFromTimestamp(timestampUtc) {
@@ -140,7 +181,7 @@ function monthSheetNameFromTimestamp(timestampUtc) {
 }
 
 function formatHeaderRow(sheet) {
-  const range = sheet.getRange(1, 1, 1, HEADERS.length);
+  const range = sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), HEADERS.length));
   range.setFontWeight('bold');
 }
 
@@ -149,7 +190,7 @@ function freezeHeaderRow(sheet) {
 }
 
 function autoResizeColumns(sheet) {
-  sheet.autoResizeColumns(1, HEADERS.length);
+  sheet.autoResizeColumns(1, Math.max(sheet.getLastColumn(), HEADERS.length));
 }
 
 function jsonResponse(obj) {
