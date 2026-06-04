@@ -88,6 +88,7 @@ String probeJson(const ProbeReading &r) {
   body += "\"temperature_c\":" + (r.valid ? String(r.temperature, 3) : String("null")) + ",";
   appendPowerMonitorJson(body, "battery_output", r.batteryOutput);
   appendPowerMonitorJson(body, "solar_input", r.solarInput);
+  appendWeatherJson(body, "weather", r.weather);
   body += "\"battery_charge_level_pct_approx\":";
   body += (isfinite(batteryChargePct) ? String(batteryChargePct, 1) : String("null"));
   body += ",";
@@ -101,6 +102,8 @@ String statusJson() {
   ProbeReading cachedProbeSnapshot = lastProbeReading;
   ProbeReading livePowerSnapshot = lastProbeReading;
   readPowerMonitors(livePowerSnapshot);
+  WeatherReading liveWeatherSnapshot;
+  readWeatherNow(liveWeatherSnapshot);
   float batteryChargePct = approximateBatteryChargePercent(livePowerSnapshot);
   bool solarChargingNow = solarChargingBatteryNow(livePowerSnapshot);
   unsigned long uploadCooldownRemainingMs = (millis() < nextUploadAllowedMs) ? (nextUploadAllowedMs - millis()) : 0UL;
@@ -139,6 +142,11 @@ String statusJson() {
   body += "\"last_successful_battery_output_read_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulBatteryOutputReadMs)) + "\",";
   body += "\"last_successful_solar_input_read_utc\":\"" + jsonEscape(lastSuccessfulSolarInputReadUtc) + "\",";
   body += "\"last_successful_solar_input_read_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulSolarInputReadMs)) + "\",";
+  body += "\"last_successful_weather_read_utc\":\"" + jsonEscape(lastSuccessfulWeatherReadUtc) + "\",";
+  body += "\"last_successful_weather_read_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulWeatherReadMs)) + "\",";
+  body += "\"weather_sensor_init_status\":\"" + jsonEscape(weatherSensorInitStatus) + "\",";
+  body += "\"last_weather_error_utc\":\"" + jsonEscape(lastWeatherErrorUtc) + "\",";
+  body += "\"last_weather_error\":\"" + jsonEscape(lastWeatherError) + "\",";
   body += "\"last_successful_upload_utc\":\"" + jsonEscape(lastSuccessfulUploadUtc) + "\",";
   body += "\"last_successful_upload_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulUploadMs)) + "\",";
   body += "\"last_upload_error_utc\":\"" + jsonEscape(lastUploadErrorUtc) + "\",";
@@ -155,8 +163,10 @@ String statusJson() {
   body += "\"cached_probe_valid\":" + String(cachedProbeSnapshot.valid ? "true" : "false") + ",";
   appendPowerMonitorJson(body, "cached_probe_battery_output", cachedProbeSnapshot.batteryOutput);
   appendPowerMonitorJson(body, "cached_probe_solar_input", cachedProbeSnapshot.solarInput);
+  appendWeatherJson(body, "cached_probe_weather", cachedProbeSnapshot.weather);
   appendPowerMonitorJson(body, "live_battery_output", livePowerSnapshot.batteryOutput);
   appendPowerMonitorJson(body, "live_solar_input", livePowerSnapshot.solarInput);
+  appendWeatherJson(body, "live_weather", liveWeatherSnapshot);
   body += "\"battery_charge_level_pct_approx\":";
   body += (isfinite(batteryChargePct) ? String(batteryChargePct, 1) : String("null"));
   body += ",";
