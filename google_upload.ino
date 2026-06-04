@@ -14,6 +14,7 @@ String makePayload(const ProbeReading &r) {
 
   appendPowerMonitorJson(payload, "battery_output", r.batteryOutput);
   appendPowerMonitorJson(payload, "solar_input", r.solarInput);
+  appendWeatherJson(payload, "weather", r.weather);
 
   payload += "\"battery_charge_level_pct_approx\":";
   payload += (isfinite(batteryChargePct) ? String(batteryChargePct, 1) : String("null"));
