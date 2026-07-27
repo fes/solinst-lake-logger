@@ -63,4 +63,12 @@ void printRuntimeConfigSummary() {
   Serial.println(POST_PATH);
   Serial.print("  DISPLAY_ON_SECONDS: ");
   Serial.println(displayOnSeconds);
+  Serial.print("  WEATHER_SENSOR_ENABLED: ");
+  Serial.println(WEATHER_SENSOR_ENABLED ? "true" : "false");
+  Serial.print("  WEATHER_MODBUS_ID: ");
+  Serial.println(WEATHER_MODBUS_ID);
+  Serial.print("  WEATHER_BAUD: ");
+  Serial.println(WEATHER_BAUD);
+  Serial.print("  WEATHER_SAMPLE_INTERVAL_MS: ");
+  Serial.println(WEATHER_SAMPLE_INTERVAL_MS);
 }

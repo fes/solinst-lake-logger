@@ -11,6 +11,7 @@ A field logger for an **Arduino Opta WiFi** that:
   - **solar input** monitor at **0x41**
 - uses the Opta status LEDs for field diagnostics
 - supports a **2.42 inch SSD1309 I2C OLED** local status display that wakes on user-button press and turns back off after a configurable timeout
+- can read a **DFRobot SEN0657 7-in-1 weather station** on the same RS-485 wiring when enabled
 
 The logger currently uploads:
 
@@ -21,6 +22,7 @@ The logger currently uploads:
 - INA228 solar input voltage/current/power
 - an approximate battery charge percentage
 - a boolean indicating whether solar appears to be charging the battery
+- optional weather values: wind speed/direction, air temperature, relative humidity, barometric pressure, light, and rainfall accumulation
 
 ---
 
@@ -34,6 +36,7 @@ The logger currently uploads:
 - `backlog.ino` - upload backlog queue
 - `time_sync.ino` - Wi-Fi and NTP time sync
 - `probe_modbus.ino` - Solinst Modbus reads
+- `weather_modbus.ino` - DFRobot SEN0657 Modbus reads
 - `probe_cycle.ino` - shared probe + upload flow
 - `power_monitors.ino` - INA228 initialization and reads
 - `battery_status.ino` - shared battery estimate / charging status helpers
@@ -65,6 +68,52 @@ The code assumes:
 - `0x41` = solar input monitor
 
 Those addresses are defined in `config.h`.
+
+### Optional DFRobot SEN0657 weather station
+
+The station is disabled by default. To enable it, set `WEATHER_SENSOR_ENABLED` to
+`true` in `config.h` only after configuring and wiring it as follows:
+
+- **Modbus address:** The factory address is `1`, which conflicts with the Solinst
+  301's configured address. Change the weather station address register `0x07D0`
+  to `2` (the configured `WEATHER_MODBUS_ID`) while the station is isolated from
+  the Solinst bus.
+- **Baud rate:** Change the weather station baud-rate register `0x07D1` to `3`
+  for 19200 baud, matching `WEATHER_BAUD`.
+- **Serial framing:** DFRobot specifies 8N1 for the weather station; the Solinst
+  uses 19200 8E1. The firmware reinitializes the Opta RS-485 interface before
+  each device read so both can share the physical bus. Do not change
+  `WEATHER_SERIAL_CFG` to the Solinst framing.
+- **Bus wiring:** Connect RS-485 A/B consistently to the existing bus and
+  provide the station's required power separately. Keep the bus topology,
+  termination, and common reference appropriate for the cable run.
+
+The logger samples weather every five minutes in RAM and uploads one summary
+with each hourly lake reading. The hourly row contains the latest raw weather
+values plus min/max/average temperature, humidity, pressure, wind speed, and
+illumination. Wind direction is a circular average, so north readings near
+`0` and `360` degrees average correctly.
+
+- wind speed, direction, air temperature, relative humidity, barometric pressure,
+  and illumination are instantaneous readings;
+- `weather_rainfall_mm` is the station's accumulated rainfall counter in mm, not
+  rain during that logger interval. It persists until the station is reset or its
+  rainfall-zeroing register is explicitly written.
+- `weather_rainfall_interval_mm` is the change in that counter during the
+  summary interval. It is `null` and `weather_rainfall_counter_reset` is `true`
+  if the counter decreases, which covers a reset, manual zero, rollover, or
+  replacement without inventing a rainfall value.
+
+Weather read failure does not discard a successful Solinst reading. The upload
+contains the weather error and validity fields instead.
+
+### OLED wake recovery
+
+Each OLED wake restarts the Opta I2C controller before reinitializing the
+display. This recovers controller-side I2C state after a display sleep/wake
+failure. If the OLED holds SDA or SCL electrically low, firmware cannot clear
+that physical condition; inspect the display power, connector, pull-ups, and
+I2C cable length.
 
 ### INA228 measurement intent
 

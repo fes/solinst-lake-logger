@@ -7,7 +7,9 @@
 // keeps waiting after echo-only data, and searches the RX buffer for a valid
 // Modbus response frame.
 
-bool solinstRs485Started = false;
+bool rs485Started = false;
+uint32_t rs485Baud = 0;
+uint16_t rs485SerialConfig = 0;
 
 uint16_t modbusCrc16(const uint8_t *data, size_t len) {
   uint16_t crc = 0xFFFF;
@@ -50,24 +52,35 @@ void printModbusBytes(const char *label, const uint8_t *data, size_t len) {
   Serial.println();
 }
 
-void beginSolinstRs485() {
-  if (solinstRs485Started) return;
+void beginRs485(uint32_t baud, uint16_t serialConfig, const char *deviceName) {
+  if (rs485Started && rs485Baud == baud && rs485SerialConfig == serialConfig) return;
 
   RS485.end();
   delay(50);
   RS485.setDelays(WLTS_RS485_PRE_DELAY_US, WLTS_RS485_POST_DELAY_US);
-  RS485.begin(WLTS_BAUD, WLTS_SERIAL_CFG);
+  RS485.begin(baud, serialConfig);
   RS485.receive();
 
-  solinstRs485Started = true;
+  rs485Started = true;
+  rs485Baud = baud;
+  rs485SerialConfig = serialConfig;
 
-  Serial.print("Solinst RS-485 initialized: baud=");
-  Serial.print(WLTS_BAUD);
+  Serial.print(deviceName);
+  Serial.print(" RS-485 initialized: baud=");
+  Serial.print(baud);
   Serial.print(" pre=");
   Serial.print(WLTS_RS485_PRE_DELAY_US);
   Serial.print("us post=");
   Serial.print(WLTS_RS485_POST_DELAY_US);
   Serial.println("us echo-aware manual Modbus");
+}
+
+void beginSolinstRs485() {
+  beginRs485(WLTS_BAUD, WLTS_SERIAL_CFG, "Solinst");
+}
+
+void beginWeatherRs485() {
+  beginRs485(WEATHER_BAUD, WEATHER_SERIAL_CFG, "Weather");
 }
 
 void clearRs485ReceiveBuffer() {
@@ -355,6 +368,9 @@ bool readLevelAndTemperature(uint8_t slaveId, ProbeReading &reading) {
 
   if (reading.valid) {
     readPowerMonitors(reading);
+    // A weather failure is recorded in the reading but does not discard a
+    // successful lake measurement.
+    readWeatherForReading(reading);
   }
 
   return reading.valid;

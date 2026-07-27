@@ -6,6 +6,7 @@ unsigned long displayLastRefreshMs = 0;
 String displayLastWakeRequestUtc = "";
 String displayLastRefreshUtc = "";
 uint32_t displayRefreshCountLocal = 0;
+uint32_t displayI2cRecoveryCountLocal = 0;
 
 bool i2cDevicePresent(uint8_t address) {
   Wire.beginTransmission(address);
@@ -38,14 +39,29 @@ bool initDisplayOnce(bool logFailures) {
   return true;
 }
 
-void reinitializeDisplayForWake() {
-  Serial.println("UI: performing OLED re-init on wake");
+bool reinitializeDisplayForWake() {
+  Serial.println("UI: restarting I2C bus and re-initializing OLED on wake");
+  Wire.end();
+  delay(20);
+  Wire.begin();
+  delay(20);
+  displayI2cRecoveryCountLocal++;
+
+  if (!i2cDevicePresent(DISPLAY_I2C_ADDRESS)) {
+    displayPresent = false;
+    displayAwake = false;
+    displayRefreshPending = false;
+    Serial.println("UI: OLED did not acknowledge after I2C restart");
+    return false;
+  }
+
   display.setI2CAddress(DISPLAY_I2C_ADDRESS << 1);
   display.begin();
   display.clearBuffer();
   display.sendBuffer();
   display.setPowerSave(0);
   displayAwake = true;
+  return true;
 }
 
 void drawDisplayScreen(const ProbeReading &snapshot) {
@@ -135,7 +151,9 @@ void wakeDisplayForTimeout() {
   displayRefreshPending = true;
 
   if (!displayAwake) {
-    reinitializeDisplayForWake();
+    if (!reinitializeDisplayForWake()) {
+      return;
+    }
   }
 }
 
@@ -190,4 +208,8 @@ String lastDisplayRefreshAge() {
 
 uint32_t displayRefreshCount() {
   return displayRefreshCountLocal;
+}
+
+uint32_t displayI2cRecoveryCount() {
+  return displayI2cRecoveryCountLocal;
 }

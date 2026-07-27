@@ -51,13 +51,15 @@ constexpr unsigned long WLTS_RESPONSE_TIMEOUT_MS = 1500UL;
 constexpr uint8_t SCAN_START_ID = 1;
 constexpr uint8_t SCAN_END_ID   = 10;
 
-// Optional DFRobot 7-in-1 RS-485/Modbus weather sensor.
-// Keep disabled until the exact register map/scaling is implemented.
+// Optional DFRobot SEN0657 7-in-1 RS-485/Modbus weather sensor.
+// Its factory address is 0x01, which conflicts with the Solinst 301. Configure
+// the weather station to a unique address before connecting both devices.
 constexpr bool WEATHER_SENSOR_ENABLED = false;
 constexpr uint8_t WEATHER_MODBUS_ID = 2;
 constexpr uint32_t WEATHER_BAUD = WLTS_BAUD;
-constexpr auto WEATHER_SERIAL_CFG = WLTS_SERIAL_CFG;
-constexpr bool WEATHER_USE_SAME_RS485_BUS = true;
+// DFRobot documents 8N1 framing; the shared bus switches framing per request.
+constexpr auto WEATHER_SERIAL_CFG = SERIAL_8N1;
+constexpr unsigned long WEATHER_SAMPLE_INTERVAL_MS = 5UL * 60UL * 1000UL;
 
 constexpr int READ_RETRIES = 4;
 constexpr unsigned long INITIAL_BACKOFF_MS = 250;
@@ -101,6 +103,32 @@ struct PowerMonitorSnapshot {
   float powerW = NAN;
 };
 
+struct WeatherSummary {
+  uint16_t sampleCount = 0;
+  String startUtc = "";
+  String endUtc = "";
+  float airTemperatureSum = 0;
+  float airTemperatureMin = NAN;
+  float airTemperatureMax = NAN;
+  float relativeHumiditySum = 0;
+  float relativeHumidityMin = NAN;
+  float relativeHumidityMax = NAN;
+  float barometricPressureSum = 0;
+  float barometricPressureMin = NAN;
+  float barometricPressureMax = NAN;
+  float windSpeedSum = 0;
+  float windSpeedMin = NAN;
+  float windSpeedMax = NAN;
+  float lightSum = 0;
+  float lightMin = NAN;
+  float lightMax = NAN;
+  float windDirectionSinSum = 0;
+  float windDirectionCosSum = 0;
+  float rainfallFirstMm = NAN;
+  float rainfallLastMm = NAN;
+  bool rainfallCounterReset = false;
+};
+
 struct WeatherReading {
   bool enabled = WEATHER_SENSOR_ENABLED;
   bool present = false;
@@ -112,9 +140,10 @@ struct WeatherReading {
   float barometricPressureHpa = NAN;
   float windSpeedMs = NAN;
   float windDirectionDeg = NAN;
-  float rainfallMm = NAN;
+  float rainfallAccumulatedMm = NAN;
   float lightLux = NAN;
   String lastError = "";
+  WeatherSummary summary;
 };
 
 struct ProbeReading {
@@ -151,6 +180,8 @@ unsigned long lastSuccessfulWeatherReadMs = 0;
 String lastSuccessfulWeatherReadUtc = "";
 String lastWeatherError = "";
 String lastWeatherErrorUtc = "";
+WeatherReading lastWeatherReading;
+WeatherSummary weatherSummary;
 
 U8G2_SSD1309_128X64_NONAME0_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE);
 bool displayPresent = false;
@@ -228,7 +259,11 @@ void appendPowerMonitorJson(String &body, const char *prefix, const PowerMonitor
 void initWeatherSensor();
 bool readWeatherNow(WeatherReading &weather);
 void readWeatherForReading(ProbeReading &reading);
+void pollWeatherIfDue(bool force = false);
+void resetWeatherSummaryForNextInterval();
 void appendWeatherJson(String &body, const char *prefix, const WeatherReading &weather);
+void beginSolinstRs485();
+void beginWeatherRs485();
 
 bool readInputRegister(uint8_t slaveId, uint16_t reg, uint16_t &value);
 bool readInputRegisterWithRetry(uint8_t slaveId, uint16_t reg, uint16_t &value);
@@ -270,3 +305,4 @@ String lastDisplayRefreshUtc();
 String lastDisplayWakeRequestAge();
 String lastDisplayRefreshAge();
 uint32_t displayRefreshCount();
+uint32_t displayI2cRecoveryCount();

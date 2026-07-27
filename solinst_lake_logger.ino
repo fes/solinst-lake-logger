@@ -13,6 +13,7 @@ void setup() {
   loadRuntimeConfig();
   printRuntimeConfigSummary();
   initPowerMonitors();
+  initWeatherSensor();
   initDisplay();
 
   if (!ModbusRTUClient.begin(WLTS_BAUD, WLTS_SERIAL_CFG)) {
@@ -74,6 +75,8 @@ void loop() {
     delay(10);
     return;
   }
+
+  pollWeatherIfDue(false);
 
   if (detectedSensorId != 0 && shouldLogNow()) {
     performProbeAndUpload("scheduled interval");

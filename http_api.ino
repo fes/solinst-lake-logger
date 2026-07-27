@@ -133,6 +133,7 @@ String statusJson() {
   body += "\"last_display_refresh_utc\":\"" + jsonEscape(lastDisplayRefreshUtc()) + "\",";
   body += "\"last_display_refresh_age\":\"" + jsonEscape(lastDisplayRefreshAge()) + "\",";
   body += "\"display_refresh_count\":" + String(displayRefreshCount()) + ",";
+  body += "\"display_i2c_recovery_count\":" + String(displayI2cRecoveryCount()) + ",";
   body += "\"user_button_present\":" + String(userButtonPresent ? "true" : "false") + ",";
   body += "\"last_user_button_press_utc\":\"" + jsonEscape(lastUserButtonPressUtc) + "\",";
   body += "\"last_user_button_press_age\":\"" + jsonEscape(millisAgeString(lastUserButtonPressMs)) + "\",";

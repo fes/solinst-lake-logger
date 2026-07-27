@@ -35,6 +35,7 @@ bool performProbeAndUpload(const char *reason) {
     } else {
       Serial.println("Posted reading to Google Sheets");
     }
+    resetWeatherSummaryForNextInterval();
 
     Serial.println("---");
     return true;
