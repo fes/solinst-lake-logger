@@ -77,7 +77,9 @@ The station is disabled by default. To enable it, set `WEATHER_SENSOR_ENABLED` t
 - **Modbus address:** The factory address is `1`, which conflicts with the Solinst
   301's configured address. Change the weather station address register `0x07D0`
   to `2` (the configured `WEATHER_MODBUS_ID`) while the station is isolated from
-  the Solinst bus.
+  the Solinst bus. The standalone
+  `weather_station_configurator/weather_station_configurator.ino` sketch performs
+  this one-time address and baud-rate configuration, then verifies it.
 - **Baud rate:** Change the weather station baud-rate register `0x07D1` to `3`
   for 19200 baud, matching `WEATHER_BAUD`.
 - **Serial framing:** DFRobot specifies 8N1 for the weather station; the Solinst

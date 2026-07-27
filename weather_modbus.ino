@@ -7,8 +7,11 @@
 // the weather station's 8N1 and the Solinst's 8E1 framing for each request.
 
 constexpr uint16_t WEATHER_REG_WIND_SPEED = 0x01F4;
-constexpr uint16_t WEATHER_REG_BLOCK_START = 0x01F4;
-constexpr uint16_t WEATHER_REG_BLOCK_QTY = 14;
+constexpr uint16_t WEATHER_REG_WIND_DIRECTION = 0x01F7;
+constexpr uint16_t WEATHER_REG_HUMIDITY = 0x01F8;
+constexpr uint16_t WEATHER_REG_PRESSURE = 0x01FD;
+constexpr uint16_t WEATHER_REG_LIGHT_HIGH = 0x01FE;
+constexpr uint16_t WEATHER_REG_RAINFALL = 0x0201;
 
 bool readWeatherHoldingRegistersOnce(uint8_t slaveId, uint16_t startReg, uint16_t quantity,
                                      uint16_t *values, const char **errorOut) {
@@ -199,8 +202,24 @@ bool readWeatherNow(WeatherReading &weather) {
     return false;
   }
 
-  uint16_t regs[WEATHER_REG_BLOCK_QTY];
-  if (!readWeatherHoldingRegistersWithRetry(WEATHER_MODBUS_ID, WEATHER_REG_BLOCK_START, WEATHER_REG_BLOCK_QTY, regs)) {
+  uint16_t windSpeed[1];
+  uint16_t windDirection[1];
+  uint16_t humidityTemperature[2];
+  uint16_t pressure[1];
+  uint16_t light[2];
+  uint16_t rainfall[1];
+
+  // The SEN0657 returns a Modbus exception for a block spanning its unsupported
+  // noise/particulate registers, so read only the documented 7-in-1 registers.
+  bool readOk =
+      readWeatherHoldingRegistersWithRetry(WEATHER_MODBUS_ID, WEATHER_REG_WIND_SPEED, 1, windSpeed) &&
+      readWeatherHoldingRegistersWithRetry(WEATHER_MODBUS_ID, WEATHER_REG_WIND_DIRECTION, 1, windDirection) &&
+      readWeatherHoldingRegistersWithRetry(WEATHER_MODBUS_ID, WEATHER_REG_HUMIDITY, 2, humidityTemperature) &&
+      readWeatherHoldingRegistersWithRetry(WEATHER_MODBUS_ID, WEATHER_REG_PRESSURE, 1, pressure) &&
+      readWeatherHoldingRegistersWithRetry(WEATHER_MODBUS_ID, WEATHER_REG_LIGHT_HIGH, 2, light) &&
+      readWeatherHoldingRegistersWithRetry(WEATHER_MODBUS_ID, WEATHER_REG_RAINFALL, 1, rainfall);
+
+  if (!readOk) {
     weather.present = false;
     weather.valid = false;
     weather.lastError = lastWeatherError.length() > 0 ? lastWeatherError : String("weather read failed");
@@ -212,16 +231,13 @@ bool readWeatherNow(WeatherReading &weather) {
   }
 
   weather.present = true;
-  weather.windSpeedMs = regs[0] / 10.0f;
-  // regs[1] is not documented in the DFRobot table.
-  weather.windDirectionDeg = regs[3];
-  weather.relativeHumidityPct = regs[4] / 10.0f;
-  weather.airTemperatureC = ((int16_t)regs[5]) / 10.0f;
-  weather.barometricPressureHpa = regs[9];
-
-  uint32_t light32 = ((uint32_t)regs[10] << 16) | regs[11];
-  weather.lightLux = light32 > 0 ? (float)light32 : (float)regs[12];
-  weather.rainfallAccumulatedMm = regs[13] / 10.0f;
+  weather.windSpeedMs = windSpeed[0] / 10.0f;
+  weather.windDirectionDeg = windDirection[0];
+  weather.relativeHumidityPct = humidityTemperature[0] / 10.0f;
+  weather.airTemperatureC = ((int16_t)humidityTemperature[1]) / 10.0f;
+  weather.barometricPressureHpa = pressure[0];
+  weather.lightLux = (float)(((uint32_t)light[0] << 16) | light[1]);
+  weather.rainfallAccumulatedMm = rainfall[0] / 10.0f;
 
   weather.valid = isfinite(weather.windSpeedMs) && isfinite(weather.windDirectionDeg) &&
                   isfinite(weather.relativeHumidityPct) && isfinite(weather.airTemperatureC) &&

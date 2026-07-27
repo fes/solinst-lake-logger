@@ -54,7 +54,7 @@ constexpr uint8_t SCAN_END_ID   = 10;
 // Optional DFRobot SEN0657 7-in-1 RS-485/Modbus weather sensor.
 // Its factory address is 0x01, which conflicts with the Solinst 301. Configure
 // the weather station to a unique address before connecting both devices.
-constexpr bool WEATHER_SENSOR_ENABLED = false;
+constexpr bool WEATHER_SENSOR_ENABLED = true;
 constexpr uint8_t WEATHER_MODBUS_ID = 2;
 constexpr uint32_t WEATHER_BAUD = WLTS_BAUD;
 // DFRobot documents 8N1 framing; the shared bus switches framing per request.
