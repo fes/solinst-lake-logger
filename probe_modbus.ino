@@ -52,12 +52,20 @@ void printModbusBytes(const char *label, const uint8_t *data, size_t len) {
   Serial.println();
 }
 
+unsigned long rs485PostDelayUs(uint32_t baud) {
+  // The Opta UART flush can complete while its final byte is still shifting.
+  // Allow 12 bit-times for all supported framings, plus a small margin, then
+  // release the driver promptly so a fast slave response is not contended.
+  return ((12000000UL + baud - 1) / baud) + WLTS_RS485_POST_DELAY_MARGIN_US;
+}
+
 void beginRs485(uint32_t baud, uint16_t serialConfig, const char *deviceName) {
   if (rs485Started && rs485Baud == baud && rs485SerialConfig == serialConfig) return;
 
   RS485.end();
   delay(50);
-  RS485.setDelays(WLTS_RS485_PRE_DELAY_US, WLTS_RS485_POST_DELAY_US);
+  unsigned long postDelayUs = rs485PostDelayUs(baud);
+  RS485.setDelays(WLTS_RS485_PRE_DELAY_US, postDelayUs);
   RS485.begin(baud, serialConfig);
   RS485.receive();
 
@@ -71,7 +79,7 @@ void beginRs485(uint32_t baud, uint16_t serialConfig, const char *deviceName) {
   Serial.print(" pre=");
   Serial.print(WLTS_RS485_PRE_DELAY_US);
   Serial.print("us post=");
-  Serial.print(WLTS_RS485_POST_DELAY_US);
+  Serial.print(postDelayUs);
   Serial.println("us echo-aware manual Modbus");
 }
 

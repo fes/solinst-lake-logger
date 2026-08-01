@@ -102,8 +102,8 @@ String statusJson() {
   ProbeReading cachedProbeSnapshot = lastProbeReading;
   ProbeReading livePowerSnapshot = lastProbeReading;
   readPowerMonitors(livePowerSnapshot);
-  WeatherReading liveWeatherSnapshot;
-  readWeatherNow(liveWeatherSnapshot);
+  // Keep diagnostics responsive while periodic weather polling handles retries.
+  WeatherReading liveWeatherSnapshot = lastWeatherReading;
   float batteryChargePct = approximateBatteryChargePercent(livePowerSnapshot);
   bool solarChargingNow = solarChargingBatteryNow(livePowerSnapshot);
   unsigned long uploadCooldownRemainingMs = (millis() < nextUploadAllowedMs) ? (nextUploadAllowedMs - millis()) : 0UL;

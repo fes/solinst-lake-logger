@@ -37,6 +37,20 @@ The logger currently uploads:
 - `time_sync.ino` - Wi-Fi and NTP time sync
 - `probe_modbus.ino` - Solinst Modbus reads
 - `weather_modbus.ino` - DFRobot SEN0657 Modbus reads
+- `r4_weather_station_probe/r4_weather_station_probe.ino` - standalone Uno R4
+  WiFi probe for the RS232/RS485 Shield V1
+- `opta_weather_bus_diagnostic/opta_weather_bus_diagnostic.ino` and
+  `r4_weather_bus_diagnostic/r4_weather_bus_diagnostic.ino` - paired master and
+  passive-monitor firmware for isolating the Opta's RS-485 transmit/receive paths
+
+The paired diagnostics print timestamps, raw TX/RX or monitored bus frames,
+decoded Modbus requests/responses, CRC results, Modbus exceptions, response
+timeouts, monitor heartbeats, and receive-buffer overflow events.
+
+In master mode, either diagnostic alternates wind-speed requests between the
+factory SEN0657 endpoint (ID 1 at 4800 baud, 8N1) and the provisioned endpoint
+(ID 2 at 19200 baud, 8N1). In monitor mode, set `MONITOR_PROFILE_INDEX` to `0`
+or `1` before upload because a UART can listen to only one baud rate at a time.
 - `probe_cycle.ino` - shared probe + upload flow
 - `power_monitors.ino` - INA228 initialization and reads
 - `battery_status.ino` - shared battery estimate / charging status helpers

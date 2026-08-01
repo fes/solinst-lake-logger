@@ -64,6 +64,7 @@ bool readWeatherHoldingRegistersOnce(uint8_t slaveId, uint16_t startReg, uint16_
     Serial.print(quantity);
     Serial.print(" err=");
     Serial.println(errorOut && *errorOut ? *errorOut : "unknown");
+    printModbusBytes("Weather RX raw", responseBuffer, responseLength);
     return false;
   }
 

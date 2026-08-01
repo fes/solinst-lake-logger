@@ -46,7 +46,8 @@ constexpr auto     WLTS_SERIAL_CFG = SERIAL_8E1;
 constexpr bool     WLTS_USE_FIXED_MODBUS_ID = true;
 constexpr uint8_t  WLTS_FIXED_MODBUS_ID = 1;
 constexpr unsigned long WLTS_RS485_PRE_DELAY_US  = 1000UL;
-constexpr unsigned long WLTS_RS485_POST_DELAY_US = 1000UL;
+// Extra driver-enable time after one complete UART character.
+constexpr unsigned long WLTS_RS485_POST_DELAY_MARGIN_US = 500UL;
 constexpr unsigned long WLTS_RESPONSE_TIMEOUT_MS = 1500UL;
 constexpr uint8_t SCAN_START_ID = 1;
 constexpr uint8_t SCAN_END_ID   = 10;
@@ -54,7 +55,7 @@ constexpr uint8_t SCAN_END_ID   = 10;
 // Optional DFRobot SEN0657 7-in-1 RS-485/Modbus weather sensor.
 // Its factory address is 0x01, which conflicts with the Solinst 301. Configure
 // the weather station to a unique address before connecting both devices.
-constexpr bool WEATHER_SENSOR_ENABLED = true;
+constexpr bool WEATHER_SENSOR_ENABLED = false;
 constexpr uint8_t WEATHER_MODBUS_ID = 2;
 constexpr uint32_t WEATHER_BAUD = WLTS_BAUD;
 // DFRobot documents 8N1 framing; the shared bus switches framing per request.
