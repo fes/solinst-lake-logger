@@ -1,10 +1,9 @@
-// Optional DFRobot SEN0657 7-in-1 RS-485/Modbus weather sensor support.
+// Retained DFRobot SEN0657 7-in-1 RS-485/Modbus sensor driver.
 //
 // The DFRobot reference says the sensor uses Modbus RTU function 0x03 for
-// reads, factory default address 0x01, and factory default baud 4800 8N1.
-// This logger shares its RS-485 bus with the Solinst 301. Configure the weather
-// station to the same baud rate and a unique address; the Opta switches between
-// the weather station's 8N1 and the Solinst's 8E1 framing for each request.
+// reads, factory default address 0x01, and factory default baud 4800 8N1. It is
+// disabled by the supported Opta profile. The future Giga site profile will
+// route this driver through its own isolated RS-485 channel.
 
 constexpr uint16_t WEATHER_REG_WIND_SPEED = 0x01F4;
 constexpr uint16_t WEATHER_REG_WIND_DIRECTION = 0x01F7;
