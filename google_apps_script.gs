@@ -79,6 +79,7 @@ function doPost(e) {
     const receivedAtUtc = new Date().toISOString();
 
     const timestampUtc = asString(data.timestamp_utc) || receivedAtUtc;
+    const deviceId = asString(data.device_id);
     const sheetName = monthSheetNameFromTimestamp(timestampUtc);
     const sheet = getOrCreatePeriodSheet(ss, sheetName);
     const headers = ensureHeaderRow(sheet);
@@ -86,7 +87,7 @@ function doPost(e) {
     const valuesByHeader = {
       received_at_utc: receivedAtUtc,
       timestamp_utc: timestampUtc,
-      device_id: asString(data.device_id),
+      device_id: deviceId,
       modbus_id: asIntOrBlank(data.modbus_id),
       serial_number: asString(data.serial_number),
       firmware: asString(data.firmware),
@@ -141,15 +142,31 @@ function doPost(e) {
       status: asString(data.status || 'OK')
     };
 
+    if (isDuplicateReading(sheet, headers, deviceId, timestampUtc)) {
+      return jsonResponse({
+        ok: true,
+        duplicate: true,
+        message: 'Duplicate row ignored',
+        spreadsheet_name: spreadsheetName,
+        sheet_name: sheetName,
+        received_at_utc: receivedAtUtc,
+        timestamp_utc: timestampUtc,
+        device_id: deviceId
+      });
+    }
+
     const row = headers.map(header => valuesByHeader[header] !== undefined ? valuesByHeader[header] : '');
     sheet.appendRow(row);
 
     return jsonResponse({
       ok: true,
+      duplicate: false,
       message: 'Row appended',
       spreadsheet_name: spreadsheetName,
       sheet_name: sheetName,
-      received_at_utc: receivedAtUtc
+      received_at_utc: receivedAtUtc,
+      timestamp_utc: timestampUtc,
+      device_id: deviceId
     });
   } catch (err) {
     return jsonResponse({ ok: false, error: String(err) });
@@ -212,6 +229,36 @@ function ensureHeaderRow(sheet) {
   }
 
   return existingHeaders;
+}
+
+function isDuplicateReading(sheet, headers, deviceId, timestampUtc) {
+  if (!deviceId || !timestampUtc) return false;
+
+  const deviceCol = headers.indexOf('device_id') + 1;
+  const timestampCol = headers.indexOf('timestamp_utc') + 1;
+  if (deviceCol < 1 || timestampCol < 1) return false;
+
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return false;
+
+  const width = Math.max(deviceCol, timestampCol);
+  const values = sheet.getRange(2, 1, lastRow - 1, width).getValues();
+  const deviceIndex = deviceCol - 1;
+  const timestampIndex = timestampCol - 1;
+
+  for (let i = values.length - 1; i >= 0; i--) {
+    if (String(values[i][deviceIndex] || '') === deviceId &&
+        normalizeTimestamp(values[i][timestampIndex]) === normalizeTimestamp(timestampUtc)) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+function normalizeTimestamp(value) {
+  if (value instanceof Date) return value.toISOString();
+  return String(value || '').trim();
 }
 
 function monthSheetNameFromTimestamp(timestampUtc) {
