@@ -6,7 +6,7 @@ void setup() {
   bootMs = millis();
 
   Serial.println();
-  Serial.println("Starting Opta + Solinst 301 + Google Sheets logger + HTTP API");
+  Serial.println("Starting Opta + Solinst 301 lake logger + HTTP API");
 
   initUserInterface();
 

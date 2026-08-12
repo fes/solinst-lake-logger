@@ -55,10 +55,50 @@ void clearUploadFailureState() {
   lastUploadErrorUtc = "";
 }
 
-bool isSuccessfulGoogleAppsScriptResponse(int statusCode, const String &response) {
+const char* uploadEndpointModeName() {
+  return UPLOAD_ENDPOINT_MODE == UploadEndpointMode::GOOGLE_APPS_SCRIPT
+           ? "google_apps_script"
+           : "feslabs_ingest";
+}
+
+const char* uploadEndpointHost() {
+  return UPLOAD_ENDPOINT_MODE == UploadEndpointMode::GOOGLE_APPS_SCRIPT
+           ? GOOGLE_APPS_SCRIPT_HOST
+           : FESLABS_INGEST_HOST;
+}
+
+const char* uploadEndpointPath() {
+  return UPLOAD_ENDPOINT_MODE == UploadEndpointMode::GOOGLE_APPS_SCRIPT
+           ? GOOGLE_APPS_SCRIPT_PATH
+           : FESLABS_INGEST_PATH;
+}
+
+uint16_t uploadEndpointPort() {
+  return UPLOAD_ENDPOINT_MODE == UploadEndpointMode::GOOGLE_APPS_SCRIPT
+           ? GOOGLE_APPS_SCRIPT_PORT
+           : FESLABS_INGEST_PORT;
+}
+
+bool uploadEndpointUsesHttps() {
+  return UPLOAD_ENDPOINT_MODE == UploadEndpointMode::GOOGLE_APPS_SCRIPT
+           ? true
+           : FESLABS_INGEST_USE_HTTPS;
+}
+
+HttpClient& uploadHttpClient() {
+  if (UPLOAD_ENDPOINT_MODE == UploadEndpointMode::GOOGLE_APPS_SCRIPT) {
+    return googleAppsScriptHttpClient;
+  }
+
+  return FESLABS_INGEST_USE_HTTPS ? fesLabsHttpsClient : fesLabsHttpClient;
+}
+
+bool isSuccessfulUploadResponse(int statusCode) {
   if (statusCode >= 200 && statusCode < 300) return true;
 
-  if (statusCode == 301 || statusCode == 302 || statusCode == 303 || statusCode == 307 || statusCode == 308) {
+  if (UPLOAD_ENDPOINT_MODE == UploadEndpointMode::GOOGLE_APPS_SCRIPT &&
+      (statusCode == 301 || statusCode == 302 || statusCode == 303 ||
+       statusCode == 307 || statusCode == 308)) {
     Serial.println("Treating Google Apps Script redirect response as upload success");
     return true;
   }
@@ -67,10 +107,11 @@ bool isSuccessfulGoogleAppsScriptResponse(int statusCode, const String &response
 }
 
 bool postJson(const String &payload) {
+  HttpClient &httpClient = uploadHttpClient();
   httpClient.stop();
 
   httpClient.beginRequest();
-  httpClient.post(POST_PATH);
+  httpClient.post(uploadEndpointPath());
   httpClient.sendHeader("Content-Type", "application/json");
   httpClient.sendHeader("Content-Length", payload.length());
   httpClient.beginBody();
@@ -85,7 +126,7 @@ bool postJson(const String &payload) {
   Serial.print("POST response: ");
   Serial.println(response);
 
-  if (isSuccessfulGoogleAppsScriptResponse(statusCode, response)) {
+  if (isSuccessfulUploadResponse(statusCode)) {
     return true;
   }
 

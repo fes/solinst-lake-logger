@@ -119,6 +119,11 @@ String statusJson() {
   body += "\"clock_valid_check\":" + String(isClockValid() ? "true" : "false") + ",";
   body += "\"clock_now_utc\":\"" + jsonEscape(nowUtcString()) + "\",";
   body += "\"last_ntp_sync_age\":\"" + jsonEscape(millisAgeString(lastNtpSyncMs)) + "\",";
+  body += "\"upload_endpoint_mode\":\"" + jsonEscape(String(uploadEndpointModeName())) + "\",";
+  body += "\"upload_endpoint_host\":\"" + jsonEscape(String(uploadEndpointHost())) + "\",";
+  body += "\"upload_endpoint_path\":\"" + jsonEscape(String(uploadEndpointPath())) + "\",";
+  body += "\"upload_endpoint_port\":" + String(uploadEndpointPort()) + ",";
+  body += "\"upload_endpoint_https\":" + String(uploadEndpointUsesHttps() ? "true" : "false") + ",";
   body += "\"sensor_found\":" + String(detectedSensorId != 0 ? "true" : "false") + ",";
   body += "\"modbus_id\":" + String(detectedSensorId) + ",";
   body += "\"configured_fixed_modbus_id_enabled\":" + String(WLTS_USE_FIXED_MODBUS_ID ? "true" : "false") + ",";

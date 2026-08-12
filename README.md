@@ -5,7 +5,8 @@ A field logger for an **Arduino Opta WiFi** that:
 - reads **water level** and **temperature** from a **Solinst 301** over **Modbus RTU / RS-485**
 - timestamps readings with NTP-synchronized UTC time
 - exposes local HTTP endpoints for health and diagnostics
-- uploads readings to a **Google Apps Script** web app that writes into a Google Sheet
+- uploads readings to either the existing **Google Apps Script** web app or a
+  new **fesLabs ingest endpoint**, selected at compile time
 - reads two **INA228** I2C power monitors:
   - **battery output** monitor at **0x40**
   - **solar input** monitor at **0x41**
@@ -56,7 +57,7 @@ or `1` before upload because a UART can listen to only one baud rate at a time.
 - `battery_status.ino` - shared battery estimate / charging status helpers
 - `ui_status.ino` - Opta LED behavior and user-button handling
 - `display_oled.ino` - SSD1309 OLED init / wake / timeout / redraw logic
-- `google_upload.ino` - JSON payload generation, upload retry logic, and cooldown state
+- `google_upload.ino` - JSON payload generation, endpoint selection, upload retry logic, and cooldown state
 - `http_api.ino` - local HTTP handlers, pretty-printed JSON responses, and HTML landing page
 - `google_apps_script.gs` - Google Apps Script endpoint for Sheets logging
 
@@ -542,6 +543,72 @@ The repository includes `google_apps_script.gs`.
 
 ---
 
+## Upload endpoint selection
+
+`config.h` keeps Google Apps Script selected by default:
+
+```cpp
+constexpr UploadEndpointMode UPLOAD_ENDPOINT_MODE =
+  UploadEndpointMode::GOOGLE_APPS_SCRIPT;
+```
+
+To use the new service, set it to:
+
+```cpp
+constexpr UploadEndpointMode UPLOAD_ENDPOINT_MODE =
+  UploadEndpointMode::FESLABS_INGEST;
+```
+
+The tracked production defaults point to the Firebase Function at
+`https://feslabs.com/api/lake/ingest`. These constants control that target in
+`config.h`:
+
+- `FESLABS_INGEST_HOST` - `feslabs.com`, without `https://`
+- `FESLABS_INGEST_PATH` - absolute request path beginning with `/`
+- `FESLABS_INGEST_PORT` - normally `443` for HTTPS
+- `FESLABS_INGEST_USE_HTTPS` - keep `true` in production; `false` permits a
+  plain-HTTP development endpoint
+
+The serial config summary prints the selected mode, host, path, port, and HTTPS
+setting at boot. `DEPLOYMENT_ID_VALUE` remains required by the current secrets
+template because Google Apps Script is the safe default; it is ignored when
+`FESLABS_INGEST` is selected.
+
+### fesLabs ingest service contract
+
+The service should implement `POST FESLABS_INGEST_PATH` and:
+
+1. Accept `Content-Type: application/json` with the same payload documented in
+   **Uploaded fields** below. Authentication currently uses the payload's
+   `secret` property, matching Apps Script.
+2. Validate `secret`, `device_id`, `timestamp_utc`, and the measurement values.
+3. Treat `(device_id, timestamp_utc)` as an idempotency key. The firmware has an
+   in-memory backlog and retries requests, so repeated delivery must not create
+   duplicate readings. Return `2xx` for a replay of an already accepted reading
+   (for example, `{"ok":true,"duplicate":true}`).
+4. Return any `2xx` status only after the reading has been durably accepted. A
+   compact JSON response such as `{"ok":true}` is recommended but the firmware
+   does not require a particular response body.
+5. Return a non-`2xx` status for rejected or failed writes. Suggested responses
+   are `400` for invalid JSON/fields, `401` or `403` for a bad secret, `409` when
+   the same idempotency key is reused with conflicting data, `429` for
+   throttling, and `5xx` for transient server errors.
+6. Avoid redirects. Unlike the Google mode, fesLabs mode accepts only `2xx` as
+   success, so redirects and all other status codes enter the existing retry,
+   backlog, and cooldown flow.
+
+Serve the production endpoint over HTTPS with a certificate trusted by the
+Arduino Opta networking stack. The firmware sends the existing JSON schema
+unchanged so the Apps Script and fesLabs destinations can coexist during
+migration.
+
+The fesLabs implementation lives in the private `fes/feslabs-web` repository as
+a Firebase HTTPS Function. Its `LAKE_LOGGER_SHARED_SECRET` Secret Manager value
+must match `SHARED_SECRET_VALUE` in this firmware's untracked
+`secrets_local.h`. Firebase Hosting routes `/api/lake/ingest` to that Function.
+
+---
+
 ## Uploaded fields
 
 Each successful reading uploads these main values:
@@ -593,6 +660,7 @@ The Opta exposes these endpoints over its local web server:
 - Wi-Fi status and IP
 - uptime
 - clock validity and sync age
+- selected upload endpoint mode, host, path, port, and HTTPS setting
 - Solinst sensor identity
 - last successful probe/upload timestamps
 - cached upload error string and timestamp
@@ -616,7 +684,8 @@ The Opta exposes these endpoints over its local web server:
 
 ## Upload/backlog behavior
 
-Uploads now use cached failure state plus cooldown/backoff so a broken or misdeployed Apps Script endpoint does not get hammered continuously.
+Uploads use cached failure state plus cooldown/backoff so a broken or
+misconfigured remote endpoint does not get hammered continuously.
 
 ### Current behavior
 
@@ -626,7 +695,9 @@ Uploads now use cached failure state plus cooldown/backoff so a broken or misdep
 - the cooldown starts at `UPLOAD_RETRY_COOLDOWN_INITIAL_MS`
 - it backs off up to `UPLOAD_RETRY_COOLDOWN_MAX_MS`
 - backlog flush attempts also respect the cooldown
-- Google Apps Script redirect-style responses that still indicate a successful write are treated as success to avoid duplicate rows from retries
+- Google Apps Script mode treats redirect-style responses as success to avoid
+  duplicate rows from retries
+- fesLabs mode requires a `2xx` response and does not treat redirects as success
 
 This makes the logger much less likely to starve the HTTP server or local UI when the remote endpoint is broken.
 

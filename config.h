@@ -28,11 +28,27 @@ char DEVICE_ID[64] = DEVICE_ID_VALUE;
 char SHARED_SECRET[128] = SHARED_SECRET_VALUE;
 char POST_DEPLOYMENT_ID[128] = DEPLOYMENT_ID_VALUE;
 
-const char* POST_HOST = "script.google.com";
-const int   POST_PORT = 443;
-const char* POST_PATH_PREFIX = "/macros/s/";
-const char* POST_PATH_SUFFIX = "/exec";
-char POST_PATH[256] = "";
+enum class UploadEndpointMode : uint8_t {
+  GOOGLE_APPS_SCRIPT,
+  FESLABS_INGEST
+};
+
+// Keep the deployed Google Apps Script behavior as the safe default. Switch
+// this one value after the fesLabs ingest service is deployed and tested.
+constexpr UploadEndpointMode UPLOAD_ENDPOINT_MODE = UploadEndpointMode::GOOGLE_APPS_SCRIPT;
+
+const char* GOOGLE_APPS_SCRIPT_HOST = "script.google.com";
+constexpr uint16_t GOOGLE_APPS_SCRIPT_PORT = 443;
+const char* GOOGLE_APPS_SCRIPT_PATH_PREFIX = "/macros/s/";
+const char* GOOGLE_APPS_SCRIPT_PATH_SUFFIX = "/exec";
+char GOOGLE_APPS_SCRIPT_PATH[256] = "";
+
+// Production Firebase Hosting route for the dedicated fesLabs ingest Function.
+// Port 80/plain HTTP remains available for deliberate local testing only.
+const char* FESLABS_INGEST_HOST = "feslabs.com";
+const char* FESLABS_INGEST_PATH = "/api/lake/ingest";
+constexpr uint16_t FESLABS_INGEST_PORT = 443;
+constexpr bool FESLABS_INGEST_USE_HTTPS = true;
 
 constexpr uint16_t HTTP_PORT = 80;
 constexpr unsigned long NTP_RESYNC_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
@@ -158,8 +174,11 @@ struct ProbeReading {
 };
 
 WiFiServer server(HTTP_PORT);
+WiFiClient wifiClient;
 WiFiSSLClient wifiSslClient;
-HttpClient httpClient(wifiSslClient, POST_HOST, POST_PORT);
+HttpClient googleAppsScriptHttpClient(wifiSslClient, GOOGLE_APPS_SCRIPT_HOST, GOOGLE_APPS_SCRIPT_PORT);
+HttpClient fesLabsHttpsClient(wifiSslClient, FESLABS_INGEST_HOST, FESLABS_INGEST_PORT);
+HttpClient fesLabsHttpClient(wifiClient, FESLABS_INGEST_HOST, FESLABS_INGEST_PORT);
 WiFiUDP ntpUDP;
 NTPClient timeClient(ntpUDP, "pool.ntp.org", 0, 3600000);
 
@@ -277,6 +296,13 @@ bool probeNow(ProbeReading &reading);
 void printIdentity(uint8_t slaveId, const SensorIdentity &id);
 
 String makePayload(const ProbeReading &r);
+const char* uploadEndpointModeName();
+const char* uploadEndpointHost();
+const char* uploadEndpointPath();
+uint16_t uploadEndpointPort();
+bool uploadEndpointUsesHttps();
+HttpClient& uploadHttpClient();
+bool isSuccessfulUploadResponse(int statusCode);
 bool postJson(const String &payload);
 bool postReadingWithRetry(const ProbeReading &r);
 void flushBacklogOnce();

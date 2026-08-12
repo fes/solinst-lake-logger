@@ -21,10 +21,10 @@ String maskedPreview(const char* value, const char* placeholder) {
 } // namespace
 
 void buildPostPath() {
-  snprintf(POST_PATH, sizeof(POST_PATH), "%s%s%s",
-           POST_PATH_PREFIX,
+  snprintf(GOOGLE_APPS_SCRIPT_PATH, sizeof(GOOGLE_APPS_SCRIPT_PATH), "%s%s%s",
+           GOOGLE_APPS_SCRIPT_PATH_PREFIX,
            POST_DEPLOYMENT_ID,
-           POST_PATH_SUFFIX);
+           GOOGLE_APPS_SCRIPT_PATH_SUFFIX);
 }
 
 bool loadRuntimeConfig() {
@@ -59,8 +59,16 @@ void printRuntimeConfigSummary() {
   Serial.println(maskedPreview(SHARED_SECRET, "PUT_A_LONG_RANDOM_SECRET_HERE"));
   Serial.print("  POST_DEPLOYMENT_ID: ");
   Serial.println(maskedPreview(POST_DEPLOYMENT_ID, "PUT_YOUR_DEPLOYMENT_ID_HERE"));
-  Serial.print("  POST_PATH: ");
-  Serial.println(POST_PATH);
+  Serial.print("  UPLOAD_ENDPOINT_MODE: ");
+  Serial.println(uploadEndpointModeName());
+  Serial.print("  upload host: ");
+  Serial.println(uploadEndpointHost());
+  Serial.print("  upload path: ");
+  Serial.println(uploadEndpointPath());
+  Serial.print("  upload port: ");
+  Serial.println(uploadEndpointPort());
+  Serial.print("  upload HTTPS: ");
+  Serial.println(uploadEndpointUsesHttps() ? "true" : "false");
   Serial.print("  DISPLAY_ON_SECONDS: ");
   Serial.println(displayOnSeconds);
   Serial.print("  WEATHER_SENSOR_ENABLED: ");
