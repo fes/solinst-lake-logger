@@ -35,7 +35,7 @@ enum class UploadEndpointMode : uint8_t {
 
 // Keep the deployed Google Apps Script behavior as the safe default. Switch
 // this one value after the fesLabs ingest service is deployed and tested.
-constexpr UploadEndpointMode UPLOAD_ENDPOINT_MODE = UploadEndpointMode::GOOGLE_APPS_SCRIPT;
+constexpr UploadEndpointMode UPLOAD_ENDPOINT_MODE = UploadEndpointMode::FESLABS_INGEST;
 
 const char* GOOGLE_APPS_SCRIPT_HOST = "script.google.com";
 constexpr uint16_t GOOGLE_APPS_SCRIPT_PORT = 443;
