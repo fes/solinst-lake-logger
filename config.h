@@ -14,6 +14,9 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "board_profile.h"
+#include "runtime_boundaries.h"
+
 #if __has_include("secrets_local.h")
   #include "secrets_local.h"
 #elif defined(ALLOW_PLACEHOLDER_SECRETS)
@@ -68,13 +71,14 @@ constexpr unsigned long WLTS_RESPONSE_TIMEOUT_MS = 1500UL;
 constexpr uint8_t SCAN_START_ID = 1;
 constexpr uint8_t SCAN_END_ID   = 10;
 
-// Optional DFRobot SEN0657 7-in-1 RS-485/Modbus weather sensor.
-// Its factory address is 0x01, which conflicts with the Solinst 301. Configure
-// the weather station to a unique address before connecting both devices.
-constexpr bool WEATHER_SENSOR_ENABLED = false;
+// Weather is intentionally excluded from the supported Opta profile. The
+// driver remains available for the future Giga site logger, where it will use a
+// dedicated second RS-485 channel.
+constexpr bool WEATHER_SENSOR_ENABLED = ACTIVE_BOARD_PROFILE.weatherEnabled;
 constexpr uint8_t WEATHER_MODBUS_ID = 2;
 constexpr uint32_t WEATHER_BAUD = WLTS_BAUD;
-// DFRobot documents 8N1 framing; the shared bus switches framing per request.
+// Retained driver setting: DFRobot documents 8N1 framing. The planned Giga
+// target will apply it only to the weather station's dedicated channel.
 constexpr auto WEATHER_SERIAL_CFG = SERIAL_8N1;
 constexpr unsigned long WEATHER_SAMPLE_INTERVAL_MS = 5UL * 60UL * 1000UL;
 

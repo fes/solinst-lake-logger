@@ -12,7 +12,10 @@ A field logger for an **Arduino Opta WiFi** that:
   - **solar input** monitor at **0x41**
 - uses the Opta status LEDs for field diagnostics
 - supports a **2.42 inch SSD1309 I2C OLED** local status display that wakes on user-button press and turns back off after a configurable timeout
-- can read a **DFRobot SEN0657 7-in-1 weather station** on the same RS-485 wiring when enabled
+
+The supported Opta profile is intentionally **Solinst-only**. The repository is
+also being prepared for a separate future **Arduino GIGA site logger** with two
+isolated RS-485 channels and a persistent 4.26-inch e-paper display.
 
 The logger currently uploads:
 
@@ -23,13 +26,19 @@ The logger currently uploads:
 - INA228 solar input voltage/current/power
 - an approximate battery charge percentage
 - a boolean indicating whether solar appears to be charging the battery
-- optional weather values: wind speed/direction, air temperature, relative humidity, barometric pressure, light, and rainfall accumulation
+
+See [`ARCHITECTURE.md`](ARCHITECTURE.md) for the board profiles, hardware
+boundaries, and staged Giga migration plan.
 
 ---
 
 ## Repository layout
 
 - `Solinst_Lake_Logger.ino` - main setup/loop
+- `board_profile.h` - supported Opta capability profile and planned Giga profile
+- `runtime_boundaries.h` - application-facing platform/display/sensor contracts
+- `platform_opta.ino` - adapters that preserve the existing Opta implementations
+- `ARCHITECTURE.md` - target separation, boundaries, and Giga migration plan
 - `config.h` - compile-time defaults, globals, prototypes, monitor addresses, upload backoff settings, and tracked non-secret defaults
 - `config_file.ino` - compile-time config initialization and summary output
 - `secrets_example.h` - tracked template for local secrets
@@ -37,7 +46,7 @@ The logger currently uploads:
 - `backlog.ino` - upload backlog queue
 - `time_sync.ino` - Wi-Fi and NTP time sync
 - `probe_modbus.ino` - Solinst Modbus reads
-- `weather_modbus.ino` - DFRobot SEN0657 Modbus reads
+- `weather_modbus.ino` - dormant DFRobot SEN0657 driver retained for the future Giga target
 - `r4_weather_station_probe/r4_weather_station_probe.ino` - standalone Uno R4
   WiFi probe for the RS232/RS485 Shield V1
 - `opta_weather_bus_diagnostic/opta_weather_bus_diagnostic.ino` and
@@ -84,10 +93,14 @@ The code assumes:
 
 Those addresses are defined in `config.h`.
 
-### Optional DFRobot SEN0657 weather station
+### DFRobot SEN0657 weather station
 
-The station is disabled by default. To enable it, set `WEATHER_SENSOR_ENABLED` to
-`true` in `config.h` only after configuring and wiring it as follows:
+The weather station is not part of the supported Opta profile and cannot be
+enabled by toggling a standalone flag. It is reserved for the future Giga site
+logger, where it will use a dedicated isolated RS-485 channel.
+
+The retained diagnostic/configuration sketches assume the following device
+details:
 
 - **Modbus address:** The factory address is `1`, which conflicts with the Solinst
   301's configured address. Change the weather station address register `0x07D0`
@@ -97,19 +110,15 @@ The station is disabled by default. To enable it, set `WEATHER_SENSOR_ENABLED` t
   this one-time address and baud-rate configuration, then verifies it.
 - **Baud rate:** Change the weather station baud-rate register `0x07D1` to `3`
   for 19200 baud, matching `WEATHER_BAUD`.
-- **Serial framing:** DFRobot specifies 8N1 for the weather station; the Solinst
-  uses 19200 8E1. The firmware reinitializes the Opta RS-485 interface before
-  each device read so both can share the physical bus. Do not change
-  `WEATHER_SERIAL_CFG` to the Solinst framing.
-- **Bus wiring:** Connect RS-485 A/B consistently to the existing bus and
-  provide the station's required power separately. Keep the bus topology,
-  termination, and common reference appropriate for the cable run.
+- **Serial framing:** DFRobot specifies 8N1; the Solinst uses 19200 8E1. The
+  planned Giga design avoids switching framing by assigning one channel to each
+  sensor.
+- **Bus wiring:** Do not attach the weather station to the supported Opta logger
+  bus. On the planned Giga build, connect it only to its dedicated channel.
 
-The logger samples weather every five minutes in RAM and uploads one summary
-with each hourly lake reading. The hourly row contains the latest raw weather
-values plus min/max/average temperature, humidity, pressure, wind speed, and
-illumination. Wind direction is a circular average, so north readings near
-`0` and `360` degrees average correctly.
+The existing weather data model, payload fields, and summary code are retained
+so they can be reused by the future site logger. They report disabled/empty
+weather state in the Opta profile. When active on the future Giga target:
 
 - wind speed, direction, air temperature, relative humidity, barometric pressure,
   and illumination are instantaneous readings;
@@ -121,8 +130,8 @@ illumination. Wind direction is a circular average, so north readings near
   if the counter decreases, which covers a reset, manual zero, rollover, or
   replacement without inventing a rainfall value.
 
-Weather read failure does not discard a successful Solinst reading. The upload
-contains the weather error and validity fields instead.
+A weather read failure will not discard a successful Solinst reading. The
+upload will contain the weather error and validity fields instead.
 
 ### OLED wake recovery
 
