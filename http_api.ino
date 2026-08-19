@@ -106,8 +106,8 @@ String statusJson() {
   WeatherReading liveWeatherSnapshot = lastWeatherReading;
   float batteryChargePct = approximateBatteryChargePercent(livePowerSnapshot);
   bool solarChargingNow = solarChargingBatteryNow(livePowerSnapshot);
-  unsigned long uploadCooldownRemainingMs = (millis() < nextUploadAllowedMs) ? (nextUploadAllowedMs - millis()) : 0UL;
-  unsigned long displayWakeRemainingMs = (displayAwake && millis() < displayWakeUntilMs) ? (displayWakeUntilMs - millis()) : 0UL;
+  unsigned long uploadCooldownRemainingMs = ((long)(nextUploadAllowedMs - millis()) > 0) ? (nextUploadAllowedMs - millis()) : 0UL;
+  unsigned long displayWakeRemainingMs = (displayAwake && (long)(displayWakeUntilMs - millis()) > 0) ? (displayWakeUntilMs - millis()) : 0UL;
 
   String body = "{";
   body += "\"device_id\":\"" + jsonEscape(String(DEVICE_ID)) + "\",";

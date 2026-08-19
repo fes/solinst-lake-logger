@@ -136,7 +136,9 @@ bool postJson(const String &payload) {
 
 bool postReadingWithRetry(const ProbeReading &r) {
   unsigned long nowMs = millis();
-  if (nowMs < nextUploadAllowedMs) {
+  // Rollover-safe comparison: millis() wraps every ~49.7 days, and this
+  // logger is expected to run unattended for months at a time.
+  if ((long)(nextUploadAllowedMs - nowMs) > 0) {
     Serial.print("Upload skipped due to cooldown; ms remaining: ");
     Serial.println(nextUploadAllowedMs - nowMs);
     return false;
@@ -172,7 +174,7 @@ bool postReadingWithRetry(const ProbeReading &r) {
 
 void flushBacklogOnce() {
   if (backlogCount == 0) return;
-  if (millis() < nextUploadAllowedMs) return;
+  if ((long)(nextUploadAllowedMs - millis()) > 0) return;
 
   ProbeReading r;
   if (!peekBacklog(r)) return;
