@@ -6,21 +6,21 @@ void setup() {
   bootMs = millis();
 
   Serial.println();
-  Serial.println("Starting Opta + Solinst 301 lake logger + HTTP API");
+  Serial.print("Starting logger profile: ");
+  Serial.println(ACTIVE_BOARD_PROFILE.name);
 
-  initUserInterface();
+  ACTIVE_PLATFORM.begin();
 
   loadRuntimeConfig();
   printRuntimeConfigSummary();
-  initPowerMonitors();
-  initWeatherSensor();
-  initDisplay();
+  ACTIVE_AUXILIARY_SENSORS.begin();
+  ACTIVE_DISPLAY.begin();
 
   if (!ModbusRTUClient.begin(WLTS_BAUD, WLTS_SERIAL_CFG)) {
     Serial.println("ERROR: Failed to start Modbus RTU client");
     while (1) {
-      updateUserInterface();
-      updateDisplay();
+      ACTIVE_PLATFORM.tick();
+      ACTIVE_DISPLAY.tick();
       delay(25);
     }
   }
@@ -53,7 +53,7 @@ void setup() {
 }
 
 void loop() {
-  handleUserButton();
+  ACTIVE_PLATFORM.handleInput();
   handleHttpClient();
 
   if (WiFi.status() != WL_CONNECTED) {
@@ -70,21 +70,21 @@ void loop() {
     }
 
     flushBacklogOnce();
-    updateUserInterface();
-    updateDisplay();
+    ACTIVE_PLATFORM.tick();
+    ACTIVE_DISPLAY.tick();
     delay(10);
     return;
   }
 
-  pollWeatherIfDue(false);
+  ACTIVE_AUXILIARY_SENSORS.pollIfDue(false);
 
   if (detectedSensorId != 0 && shouldLogNow()) {
     performProbeAndUpload("scheduled interval");
   }
 
   flushBacklogOnce();
-  updateUserInterface();
-  updateDisplay();
+  ACTIVE_PLATFORM.tick();
+  ACTIVE_DISPLAY.tick();
 
   delay(10);
 }

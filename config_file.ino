@@ -43,6 +43,10 @@ bool loadRuntimeConfig() {
 
 void printRuntimeConfigSummary() {
   Serial.println("Compile-time config summary:");
+  Serial.print("  board profile: ");
+  Serial.println(ACTIVE_BOARD_PROFILE.name);
+  Serial.print("  RS-485 channels: ");
+  Serial.println(ACTIVE_BOARD_PROFILE.rs485ChannelCount);
   Serial.print("  config source: ");
   Serial.println(configSource);
   Serial.print("  config status: ");
