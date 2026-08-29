@@ -1,0 +1,54 @@
+name: Test
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Cache PlatformIO
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.platformio
+          key: ${{ runner.os }}-platformio-${{ hashFiles('platformio.ini') }}
+          restore-keys: |
+            ${{ runner.os }}-platformio-
+
+      - name: Install PlatformIO Core
+        run: python -m pip install --disable-pip-version-check platformio
+
+      - name: Run HIL utility unit tests
+        run: python -W error::ResourceWarning -m unittest discover -s tools/tests -v
+
+      - name: Run native firmware unit tests
+        run: pio test -e native -e native-giga
+
+      - name: Compile Opta with placeholder secrets
+        run: pio run -e opta-placeholder
+
+      - name: Compile Giga site logger with placeholder secrets
+        run: pio run -e giga-placeholder
+
+      - name: Compile Giga HIL firmware with placeholder pin map
+        run: pio run -d hil/giga_hardware_hil -e giga-hil-placeholder
+
+      - name: Compile read-only Opta HIL firmware
+        run: pio run -d hil/opta_hardware_hil -e opta-hil
+
+      # The production opta environment requires untracked secrets and is not
+      # built in CI. The placeholder build exercises the same firmware target.

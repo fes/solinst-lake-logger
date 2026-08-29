@@ -2,6 +2,43 @@
 
 These notes capture the intended direction for the Arduino Giga R1 site logger path. They are not requirements for the existing Opta deployment.
 
+## PlatformIO foundation
+
+The firmware uses PlatformIO with standard C++ translation units. The deployed
+Opta target remains the default environment. `env:giga` now compiles the full
+production application for the GIGA R1 M7, and separate native environments
+exercise both board-profile selections.
+
+Current boundaries:
+
+- `include/board_profile.h` selects the Opta or Giga profile from build flags.
+- `include/runtime_boundaries.h` separates application startup/tick behavior
+  from the active platform, display, and auxiliary-sensor adapters.
+- `include/rs485_channel.h` separates Modbus protocol code from board transport.
+  Opta maps both logical devices to its shared transceiver; Giga maps Solinst
+  and weather to channels 1 and 2 of the SPI-connected SC16IS752.
+- `src/platform_giga.cpp` runs the full logger single-core on M7.
+- `ReadingStorage` decouples upload and status code from the RAM queue backend.
+- Persistent storage safety, serialization, and activation gates are defined in
+  [persistent-backlog.md](persistent-backlog.md); current firmware remains
+  RAM-backed.
+- `lib/logger_core` contains hardware-independent queue, Modbus validation and
+  codec, battery-state, retry timing, site-health, rolling extrema, and e-paper
+  refresh policy used by both firmware and native tests.
+
+Production Giga supports Waveshare SKU 26376: the black/white 800x480
+GDEQ0426T82/SSD1677 panel through GxEPD2 on `SPI1`. It uses D10 CS, D9 DC,
+D8 RST, D7 BUSY, D6 PWR, D11 MOSI, and D13 SCK. Display failures fail open and
+cannot block sensing or upload indefinitely.
+
+The Waveshare 2-CH RS485 HAT shares SPI1 with the display and uses D5 CS,
+D4 IRQ, D3 EN1, D2 EN2, and D12 MISO. Its SC16IS752 provides independent
+8E1 and 8N1 UART channels. Each device uses SPI mode 0 transactions and its
+own active-low chip select, so the other peripheral remains deselected.
+SW1 and SW2 use positions 3 and 4 ON for Half-auto/manual direction. The HAT's
+EN1/EN2 inputs are active HIGH at the Giga header. Transmit direction is held
+until the SC16IS752 reports an empty shift register.
+
 ## Scope split
 
 The current Opta setup should remain conservative and Solinst-focused:
@@ -32,6 +69,9 @@ The e-paper display should use a single normal-operation dashboard page. We are 
 - The page is static between refreshes.
 - If Wi-Fi is disconnected, upload health is poor, or another critical condition is active, the display can automatically switch to a diagnostics-oriented page.
 - Richer diagnostics should remain available through the local HTTP API.
+- Use paged/tiled rendering. The current logger plus 256-entry RAM backlog does
+  not have enough comfortable runtime/TLS headroom for an unnecessary 48 KB
+  full-screen monochrome framebuffer.
 
 ### Status bar
 
@@ -84,7 +124,9 @@ Upload/status widget:
 
 ### 24-hour battery min/max
 
-The Giga firmware should compute local rolling 24-hour battery minimum and maximum. This is useful for winter solar evaluation and should continue to work even when uploads fail.
+The firmware computes local rolling 24-hour battery minimum and maximum in
+five-minute buckets. This is useful for winter solar evaluation and continues
+to work when uploads fail.
 
 Implementation should be independent of the display. The display consumes a state snapshot containing the already-computed values.
 
@@ -142,7 +184,7 @@ Initial backends:
 Future backends:
 
 - SD card
-- flash/QSPI if reliable on the selected board
+- LittleFS2 on a verified QSPI MBR partition 4, only after the staged bench gate
 - append-only local log
 
 ## Site reading model

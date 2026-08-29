@@ -1,1 +1,5 @@
 secrets_local.h
+hil/giga_hardware_hil/include/hil_config.h
+.pio/
+__pycache__/
+*.pyc

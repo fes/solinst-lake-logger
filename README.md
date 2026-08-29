@@ -1,6 +1,7 @@
 # Solinst Lake Logger
 
-A field logger for an **Arduino Opta WiFi** that:
+A dual-target field logger for **Arduino Opta WiFi** and **Arduino GIGA R1
+WiFi** that:
 
 - reads **water level** and **temperature** from a **Solinst 301** over **Modbus RTU / RS-485**
 - timestamps readings with NTP-synchronized UTC time
@@ -11,8 +12,10 @@ A field logger for an **Arduino Opta WiFi** that:
   - **battery output** monitor at **0x40**
   - **solar input** monitor at **0x41**
 - uses the Opta status LEDs for field diagnostics
-- supports a **2.42 inch SSD1309 I2C OLED** local status display that wakes on user-button press and turns back off after a configurable timeout
-- can read a **DFRobot SEN0657 7-in-1 weather station** on the same RS-485 wiring when enabled
+- supports a **2.42 inch SSD1309 I2C OLED** on Opta
+- supports the **Waveshare 4.26-inch e-Paper HAT, SKU 26376** on Giga
+- reads a **DFRobot SEN0657 7-in-1 weather station** on the shared Opta bus
+  when enabled, or on Giga's independent second RS-485 channel
 
 The logger currently uploads:
 
@@ -29,15 +32,23 @@ The logger currently uploads:
 
 ## Repository layout
 
-- `Solinst_Lake_Logger.ino` - main setup/loop
-- `config.h` - compile-time defaults, globals, prototypes, monitor addresses, upload backoff settings, and tracked non-secret defaults
-- `config_file.ino` - compile-time config initialization and summary output
+- `platformio.ini` - Opta and Giga production/placeholder firmware plus
+  Opta/Giga native test environments
+- `src/main.cpp` - main setup/loop
+- `src/app_state.cpp` - single owner for runtime state and hardware objects
+- `include/config.h` - compile-time defaults, data models, state declarations, and service contracts
+- `include/board_profile.h` - build-selected Opta and Giga capabilities
+- `include/giga_board_config.h` - reviewed Giga transceiver pin configuration
+- `include/rs485_channel.h` / `src/rs485_*.cpp` - board-specific RS-485 channels
+- `include/runtime_boundaries.h` / `src/platform_*.cpp` - platform, display,
+  and auxiliary-sensor adapters
 - `secrets_example.h` - tracked template for local secrets
-- `util.ino` - utility helpers
-- `backlog.ino` - upload backlog queue
-- `time_sync.ino` - Wi-Fi and NTP time sync
-- `probe_modbus.ino` - Solinst Modbus reads
-- `weather_modbus.ino` - DFRobot SEN0657 Modbus reads
+- `src/config_file.cpp` - compile-time config initialization and summary output
+- `src/` - logger services for Modbus, weather, power, display, HTTP, upload, and time sync
+- `lib/logger_core/` - hardware-independent queue, Modbus, battery, and retry policies
+- `test/test_logger_core/` - native unit tests for the shared core
+- `hil/giga_hardware_hil/` - standalone Giga M7 dual-RS-485/e-paper HIL firmware
+- `tools/giga_hil.py` - USB-serial Giga HIL automation runner
 - `r4_weather_station_probe/r4_weather_station_probe.ino` - standalone Uno R4
   WiFi probe for the RS232/RS485 Shield V1
 - `opta_weather_bus_diagnostic/opta_weather_bus_diagnostic.ino` and
@@ -52,20 +63,13 @@ In master mode, either diagnostic alternates wind-speed requests between the
 factory SEN0657 endpoint (ID 1 at 4800 baud, 8N1) and the provisioned endpoint
 (ID 2 at 19200 baud, 8N1). In monitor mode, set `MONITOR_PROFILE_INDEX` to `0`
 or `1` before upload because a UART can listen to only one baud rate at a time.
-- `probe_cycle.ino` - shared probe + upload flow
-- `power_monitors.ino` - INA228 initialization and reads
-- `battery_status.ino` - shared battery estimate / charging status helpers
-- `ui_status.ino` - Opta LED behavior and user-button handling
-- `display_oled.ino` - SSD1309 OLED init / wake / timeout / redraw logic
-- `google_upload.ino` - JSON payload generation, endpoint selection, upload retry logic, and cooldown state
-- `http_api.ino` - local HTTP handlers, pretty-printed JSON responses, and HTML landing page
 - `google_apps_script.gs` - Google Apps Script endpoint for Sheets logging
 
 ---
 
 ## Hardware assumptions
 
-This project is written for:
+The deployed Opta profile assumes:
 
 - **Arduino Opta WiFi**
 - **Solinst 301** wired for **Modbus RTU** over the Opta RS-485 interface
@@ -75,6 +79,29 @@ This project is written for:
 - **2.42 inch SSD1309 128x64 I2C OLED** display
 - **12 V LiFePO4** battery system with solar charge controller
 
+The Giga profile assumes:
+
+- **Arduino GIGA R1 WiFi**, M7 core, running the logger single-core
+- Waveshare 2-CH RS485 HAT with its SC16IS752 dual UART on `SPI1`: D5 CS,
+  D4 IRQ, D3 channel 1 enable, D2 channel 2 enable, D12 MISO, D11 MOSI,
+  and D13 SCK
+- Solinst 301 on SC16IS752 channel 1, 19200 baud, 8E1
+- DFRobot SEN0657 on SC16IS752 channel 2, address 2, 19200 baud, 8N1
+- both channel mode switches set to Half-auto/manual (positions 3 and 4 ON,
+  positions 1 and 2 OFF); EN1/EN2 are HIGH for transmit and idle LOW for
+  receive
+- 3.3 V UART/GPIO signaling; Giga GPIO must never receive 5 V
+- the same INA228 addresses and current-path orientation as Opta
+- Waveshare SKU 26376 e-paper on `SPI1`: D10 CS, D9 DC, D8 RST, D7 BUSY,
+  D6 PWR, D11 MOSI, and D13 SCK
+
+SKU 26376 uses the black/white `GDEQ0426T82`/SSD1677 panel and GxEPD2's
+`GxEPD2_426_GDEQ0426T82` driver. The similarly sized Waveshare four-color
+variant is incompatible. The dashboard uses a 40-row/4 KB paged framebuffer,
+15-minute partial updates, a daily full refresh, bounded BUSY waits, and powers
+the panel controller off between updates. The HAT PWR line remains enabled so
+the controller RAM needed for fast partial refreshes is retained.
+
 ### INA228 addressing
 
 The code assumes:
@@ -82,12 +109,12 @@ The code assumes:
 - `0x40` = battery output monitor
 - `0x41` = solar input monitor
 
-Those addresses are defined in `config.h`.
+Those addresses are defined in `include/config.h`.
 
 ### Optional DFRobot SEN0657 weather station
 
-The station is disabled by default. To enable it, set `WEATHER_SENSOR_ENABLED` to
-`true` in `config.h` only after configuring and wiring it as follows:
+The station is disabled in the Opta profile and enabled in the Giga profile.
+Only enable it on Opta after configuring and wiring it as follows:
 
 - **Modbus address:** The factory address is `1`, which conflicts with the Solinst
   301's configured address. Change the weather station address register `0x07D0`
@@ -152,7 +179,7 @@ The display code currently assumes:
 - default I2C address **`0x3C`**
 - U8g2 constructor `U8G2_SSD1309_128X64_NONAME0_F_HW_I2C`
 
-If your display is strapped for a different I2C address, update the value in `config.h`.
+If your display is strapped for a different I2C address, update the value in `include/config.h`.
 
 ### Battery charge estimate
 
@@ -164,21 +191,23 @@ If your display is strapped for a different I2C address, update the value in `co
 
 ---
 
-## What is Opta-specific?
+## Board-specific boundaries
 
-This project can be ported to another Arduino-class board, but several parts are currently written specifically around the **Arduino Opta WiFi** hardware and core.
+Protocol, scheduling, upload, HTTP, backlog, weather aggregation, power
+presentation, and e-paper refresh policy are shared. Concrete RS-485 and
+display behavior are selected by the PlatformIO environment.
 
 ### Opta-specific items in the current design
 
 1. **Built-in RS-485 hardware**
    - The logger assumes the board already has an RS-485 interface available through the Opta APIs and wiring.
-   - `probe_modbus.ino` uses `ArduinoRS485` and timing that were tuned during Opta bring-up.
+   - `src/probe_modbus.cpp` uses `ArduinoRS485` and timing that were tuned during Opta bring-up.
 
 2. **Built-in Wi-Fi on the Opta WiFi variant**
    - The project assumes the board can use the `WiFi` stack directly for NTP, the local web server, and HTTPS uploads.
 
 3. **Opta status LEDs**
-   - `ui_status.ino` assumes the board core exposes Opta LED aliases and uses those for heartbeat, sensor, network, and power state indications.
+   - `src/ui_status.cpp` assumes the board core exposes Opta LED aliases and uses those for heartbeat, sensor, network, and power state indications.
 
 4. **Opta user button**
    - The OLED wake behavior assumes a board-level user button is available through the Opta core.
@@ -218,8 +247,8 @@ If the target board does not have built-in RS-485, you will need:
 
 What will likely need to change:
 
-- `probe_modbus.ino`
-- possibly `config.h` for different timing values
+- `src/probe_modbus.cpp`
+- possibly `include/config.h` for different timing values
 - board-specific RS-485 initialization and direction-control logic
 
 Examples of things you may need to adapt:
@@ -246,10 +275,10 @@ Possible cases:
 
 Files most likely affected:
 
-- `time_sync.ino`
-- `http_api.ino`
-- `google_upload.ino`
-- `config.h`
+- `src/time_sync.cpp`
+- `src/http_api.cpp`
+- `src/google_upload.cpp`
+- `include/config.h`
 
 ### 3. LEDs and button input
 
@@ -260,8 +289,8 @@ If the target board does not expose Opta-style LED and button aliases, you will 
 
 What will likely need to change:
 
-- `ui_status.ino`
-- any board pin definitions in `config.h`
+- `src/ui_status.cpp`
+- any board pin definitions in `include/config.h`
 
 Recommended adaptation:
 
@@ -276,7 +305,7 @@ The OLED content logic is portable, but the target board may need different:
 - I2C instance
 - voltage compatibility checks
 
-If the board uses software I2C or different hardware I2C wiring, `display_oled.ino` and board setup may need adjustment.
+If the board uses software I2C or different hardware I2C wiring, `src/display_oled.cpp` and board setup may need adjustment.
 
 ### 5. Power / monitor wiring assumptions
 
@@ -288,12 +317,7 @@ The INA228 logic is portable, but on a different board you still need:
 
 ### 6. Build/package assumptions
 
-The README currently assumes:
-
-- Arduino Opta board package
-- Opta WiFi selected in Arduino IDE
-
-For a different board, those instructions would need to be updated accordingly.
+The supported production environments are `env:opta` and `env:giga`.
 
 ---
 
@@ -302,7 +326,7 @@ For a different board, those instructions would need to be updated accordingly.
 If you wanted to move this to a different Arduino-compatible board, the minimum likely changes would be:
 
 1. **Replace the Opta RS-485 assumptions**
-   - adapt `probe_modbus.ino` to the target UART + RS-485 shield wiring
+   - adapt `src/probe_modbus.cpp` behind a target-specific RS-485 adapter
    - add DE/RE pin handling if required
 
 2. **Replace Opta LED/button dependencies**
@@ -314,7 +338,7 @@ If you wanted to move this to a different Arduino-compatible board, the minimum 
    - otherwise adapt networking code
 
 4. **Retune timing**
-   - RS-485 delays and response timeout in `config.h` may need adjustment on a different MCU / transceiver combination
+   - RS-485 delays and response timeout in `include/config.h` may need adjustment on a different MCU / transceiver combination
 
 5. **Update README/build instructions**
    - board package
@@ -381,13 +405,13 @@ and the project will fall back to `secrets_example.h`.
 
 `secrets_local.h` is now intended only for secrets and deployment-specific identifiers.
 
-Non-secret tuning values stay in tracked config. For example, the OLED display timeout now lives in `config.h` as `DISPLAY_ON_SECONDS_DEFAULT`.
+Non-secret tuning values stay in tracked config. For example, the OLED display timeout lives in `include/config.h` as `DISPLAY_ON_SECONDS_DEFAULT`.
 
 ### Current behavior in code
 
-`config.h` includes `secrets_local.h` if it exists. If it does not exist, the build errors unless `ALLOW_PLACEHOLDER_SECRETS` is defined.
+`include/config.h` includes `secrets_local.h` if it exists. If it does not exist, the build errors unless `ALLOW_PLACEHOLDER_SECRETS` is defined.
 
-`config_file.ino` initializes the derived POST path and prints a summary of the compile-time values being used.
+`src/config_file.cpp` initializes the derived POST path and prints a summary of the compile-time values being used.
 
 ---
 
@@ -395,14 +419,14 @@ Non-secret tuning values stay in tracked config. For example, the OLED display t
 
 By default, the logger now uses a **fixed configured Solinst Modbus ID** instead of scanning the whole startup range.
 
-In `config.h`:
+In `include/config.h`:
 
 - `WLTS_USE_FIXED_MODBUS_ID = true`
 - `WLTS_FIXED_MODBUS_ID = 1`
 
 If you intentionally want startup scanning again, set `WLTS_USE_FIXED_MODBUS_ID = false` and the code will scan `SCAN_START_ID` through `SCAN_END_ID`.
 
-The RS-485 path also uses explicit Opta-specific pre/post delays and an echo-aware manual Modbus parser in `probe_modbus.ino`.
+The RS-485 path also uses explicit Opta-specific pre/post delays and an echo-aware manual Modbus parser in `src/probe_modbus.cpp`.
 
 If you port to a different RS-485 transceiver or board, these settings may need retuning.
 
@@ -468,10 +492,9 @@ On a non-Opta board, you would typically replace these board aliases with normal
 
 ## Required Arduino libraries
 
-Install these in **Arduino IDE** using Library Manager:
+PlatformIO installs these from `platformio.ini`:
 
 - `ArduinoRS485`
-- `ArduinoModbus`
 - `ArduinoHttpClient`
 - `NTPClient`
 - `Adafruit INA228`
@@ -488,26 +511,63 @@ Built-in/core libraries also used:
 
 ## Board package
 
-Install the correct **Arduino Opta / Mbed OS** board package in Arduino IDE and select the **Arduino Opta WiFi** board before compiling.
-
-Because Opta core releases can change pin alias naming, if the LED/button UI does not compile or does not activate, verify the installed core version and the available LED/button pin aliases for your Opta board package.
-
-If you port to a different board, this entire section should be replaced with that board's package/install/selection instructions.
+PlatformIO uses the `ststm32` platform, the `opta` board definition, and the
+Arduino Mbed framework. Because core releases can change pin aliases, verify the
+selected platform version and its Opta aliases if the LED/button UI does not
+compile or activate.
 
 ---
 
 ## How to compile
 
-1. Open the repository folder in **Arduino IDE**.
-2. Make sure the sketch tabs/files are all present.
-3. Install the required libraries.
-4. Create `secrets_local.h` from `secrets_example.h` and fill in real values.
-5. Select the **Arduino Opta WiFi** board.
-6. Select the correct USB port.
-7. Click **Verify**.
-8. Click **Upload**.
+1. Install [PlatformIO Core](https://docs.platformio.org/en/latest/core/installation/index.html).
+2. Copy `secrets_example.h` to `secrets_local.h` and fill in real values.
+3. Build with `pio run -e opta`.
+4. Upload with `pio run -e opta -t upload`.
 
 If compilation fails because `secrets_local.h` is missing, create it from the example template. Only use `ALLOW_PLACEHOLDER_SECRETS` for deliberate placeholder builds.
+
+For a build that deliberately uses tracked placeholders:
+
+```sh
+pio run -e opta-placeholder
+```
+
+Build or upload the Giga production profile after configuring
+`include/giga_board_config.h`:
+
+```sh
+pio run -e giga
+pio run -e giga -t upload
+```
+
+The compile-only Giga placeholder is:
+
+```sh
+pio run -e giga-placeholder
+```
+
+Run the hardware-independent unit tests on the host:
+
+```sh
+pio test -e native -e native-giga
+```
+
+See [Testing strategy](docs/testing.md) for the complete automated, HIL,
+fault-injection, and soak test plan.
+
+Compile the non-deployable Giga HIL placeholder used by CI:
+
+```sh
+pio run -d hil/giga_hardware_hil -e giga-hil-placeholder
+```
+
+For a wired bench Giga, configure and flash the real HIL environment as
+described in `hil/giga_hardware_hil/README.md`, then run:
+
+```sh
+python3 tools/giga_hil.py /dev/cu.usbmodem101 --suite sensors
+```
 
 ---
 
@@ -545,23 +605,23 @@ The repository includes `google_apps_script.gs`.
 
 ## Upload endpoint selection
 
-`config.h` keeps Google Apps Script selected by default:
-
-```cpp
-constexpr UploadEndpointMode UPLOAD_ENDPOINT_MODE =
-  UploadEndpointMode::GOOGLE_APPS_SCRIPT;
-```
-
-To use the new service, set it to:
+`include/config.h` selects the fesLabs ingest service by default:
 
 ```cpp
 constexpr UploadEndpointMode UPLOAD_ENDPOINT_MODE =
   UploadEndpointMode::FESLABS_INGEST;
 ```
 
+To use the legacy Google Apps Script service, set it to:
+
+```cpp
+constexpr UploadEndpointMode UPLOAD_ENDPOINT_MODE =
+  UploadEndpointMode::GOOGLE_APPS_SCRIPT;
+```
+
 The tracked production defaults point to the Firebase Function at
 `https://feslabs.com/api/lake/ingest`. These constants control that target in
-`config.h`:
+`include/config.h`:
 
 - `FESLABS_INGEST_HOST` - `feslabs.com`, without `https://`
 - `FESLABS_INGEST_PATH` - absolute request path beginning with `/`
@@ -570,9 +630,9 @@ The tracked production defaults point to the Firebase Function at
   plain-HTTP development endpoint
 
 The serial config summary prints the selected mode, host, path, port, and HTTPS
-setting at boot. `DEPLOYMENT_ID_VALUE` remains required by the current secrets
-template because Google Apps Script is the safe default; it is ignored when
-`FESLABS_INGEST` is selected.
+setting at boot. `DEPLOYMENT_ID_VALUE` remains in the secrets template for
+Google Apps Script compatibility; it is ignored when `FESLABS_INGEST` is
+selected.
 
 ### fesLabs ingest service contract
 
@@ -666,15 +726,26 @@ The Opta exposes these endpoints over its local web server:
 - cached upload error string and timestamp
 - upload cooldown remaining
 - consecutive upload failures
+- successful/transient-failure upload counts
+- permanent upload rejection and backlog-drop counts
+- last permanent rejection HTTP status, error, rejection timestamp, and
+  rejected reading timestamp
 - backlog counts
 - INA228 presence/validity
-- live battery and solar voltage/current/power values from the last successful probe snapshot
+- cached probe battery/solar values kept with the last lake reading
+- latest manager battery/solar voltage/current/power values, refreshed every
+  10 seconds independently of HTTP requests and clock validity
 - approximate battery charge percent
 - boolean solar charging status
 
 ### Notes on `/status`
 
-`/status` is intentionally cached/non-blocking. It does **not** trigger a live power-monitor refresh or live Modbus read.
+`/status` is intentionally cached/non-blocking. It does **not** trigger a
+power-monitor refresh or live Modbus read. The compatibility fields prefixed
+with `live_` contain the latest periodically refreshed manager snapshot, not
+request-time I2C reads. `cached_probe_*` remains the power snapshot attached to
+the last successful lake reading. A successful live or scheduled probe
+force-refreshes manager power before copying it into that reading.
 
 ### Notes on `/probe`
 
@@ -687,17 +758,34 @@ The Opta exposes these endpoints over its local web server:
 Uploads use cached failure state plus cooldown/backoff so a broken or
 misconfigured remote endpoint does not get hammered continuously.
 
+The backlog is intentionally RAM-backed and does not survive reset or power
+loss. Persistent storage is a gated design only; see
+[Persistent backlog: staged design and safety gate](docs/persistent-backlog.md).
+Normal firmware does not initialize, format, erase, or write QSPI/internal flash
+for backlog storage.
+
 ### Current behavior
 
-- each attempted reading upload still uses `POST_RETRIES`
-- after repeated failures, the device records the last upload error and timestamp
-- a cooldown is applied before the next upload attempt is allowed
+- transient results use up to `POST_RETRIES`; all `2xx` responses are accepted
+- transport errors, HTTP 408/425/429, unknown redirects, and `5xx` responses
+  are transient
+- Google Apps Script 301/302/303/307/308 responses remain accepted; fesLabs
+  redirects are never accepted
+- request/auth/conflict/size/type failures
+  (400/401/403/404/409/413/415/422) and other `4xx` responses are permanent
+  rejections
+- after an exhausted transient operation, the device records the last upload
+  error and timestamp
+- a cooldown is applied once per completed logical upload operation, not once
+  per wire attempt
 - the cooldown starts at `UPLOAD_RETRY_COOLDOWN_INITIAL_MS`
 - it backs off up to `UPLOAD_RETRY_COOLDOWN_MAX_MS`
 - backlog flush attempts also respect the cooldown
-- Google Apps Script mode treats redirect-style responses as success to avoid
-  duplicate rows from retries
-- fesLabs mode requires a `2xx` response and does not treat redirects as success
+- cooldown and Wi-Fi deferrals retain or enqueue readings without incrementing
+  failure or rejection counters
+- permanently rejected fresh readings are counted and not queued
+- permanently rejected backlog heads are counted, dropped, and dequeued so
+  later FIFO readings can progress
 
 This makes the logger much less likely to starve the HTTP server or local UI when the remote endpoint is broken.
 
@@ -724,6 +812,8 @@ This makes the logger much less likely to starve the HTTP server or local UI whe
 - The Opta LED/button UI depends on the board core exposing compatible LED and button pin aliases.
 - The OLED "off" behavior is software power-save, not physical power removal.
 - Cached upload errors are exposed via `/status`, but they are not yet rendered on the OLED.
+- `/status` exposes permanent rejection/drop counters and the last permanent
+  status, error, rejection timestamp, and rejected reading timestamp.
 
 ---
 
@@ -764,6 +854,6 @@ Possible next steps:
 - richer `/probe` output including INA228 fields
 - true switched-power control for the display instead of software power-save
 - show cached upload/system errors on the OLED
-- better persistent backlog storage
+- implement the gated persistent backlog design after its bench prerequisites
 - OTA update path
 - more robust error classification for Solinst and upload failures
