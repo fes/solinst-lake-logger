@@ -24,6 +24,7 @@ class Sc16is752Spi {
   int read(uint8_t channel);
   int transmitAvailable(uint8_t channel);
   uint8_t lineStatus(uint8_t channel);
+  bool internalLoopbackTest(uint8_t channel, uint32_t timeoutMs);
   bool interruptActive() const;
 
  private:

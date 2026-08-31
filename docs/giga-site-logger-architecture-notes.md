@@ -35,8 +35,9 @@ The Waveshare 2-CH RS485 HAT shares SPI1 with the display and uses D5 CS,
 D4 IRQ, D3 EN1, D2 EN2, and D12 MISO. Its SC16IS752 provides independent
 8E1 and 8N1 UART channels. Each device uses SPI mode 0 transactions and its
 own active-low chip select, so the other peripheral remains deselected.
-SW1 and SW2 use positions 3 and 4 ON for Half-auto/manual direction. The HAT's
-EN1/EN2 inputs are active HIGH at the Giga header. Transmit direction is held
+SW1 and SW2 use positions 3 and 4 ON for Half-auto/manual direction. Live
+channel testing confirmed that the HAT's EN1/EN2 inputs are active LOW at the
+Giga header. Transmit direction is held
 until the SC16IS752 reports an empty shift register.
 
 ## Scope split

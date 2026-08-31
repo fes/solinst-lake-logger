@@ -13,6 +13,11 @@
 
 constexpr uint16_t REG_DEVICE_ADDRESS = 0x07D0;
 constexpr uint16_t REG_WIND_SPEED = 0x01F4;
+constexpr uint16_t REG_WIND_DIRECTION = 0x01F7;
+constexpr uint16_t REG_HUMIDITY = 0x01F8;
+constexpr uint16_t REG_PRESSURE = 0x01FD;
+constexpr uint16_t REG_LIGHT_HIGH = 0x01FE;
+constexpr uint16_t REG_RAINFALL = 0x0201;
 constexpr uint8_t DISCOVERY_MAX_MODBUS_ID = 10;
 constexpr unsigned long DISCOVERY_TIMEOUT_MS = 500UL;
 
@@ -179,7 +184,44 @@ void setup() {
     Serial.println(" m/s");
   } else {
     Serial.println("Station was discovered, but the wind-speed read failed.");
+    return;
   }
+
+  uint16_t windDirection[1];
+  uint16_t humidityTemperature[2];
+  uint16_t pressure[1];
+  uint16_t light[2];
+  uint16_t rainfall[1];
+  bool allChannelsValid =
+      readHoldingRegisters(stationId, REG_WIND_DIRECTION, 1, windDirection) &&
+      readHoldingRegisters(stationId, REG_HUMIDITY, 2, humidityTemperature) &&
+      readHoldingRegisters(stationId, REG_PRESSURE, 1, pressure) &&
+      readHoldingRegisters(stationId, REG_LIGHT_HIGH, 2, light) &&
+      readHoldingRegisters(stationId, REG_RAINFALL, 1, rainfall);
+  if (!allChannelsValid) {
+    Serial.println("FAILED: station responded, but one or more weather channels could not be read.");
+    return;
+  }
+
+  Serial.print("Wind direction: ");
+  Serial.print(windDirection[0]);
+  Serial.println(" degrees");
+  Serial.print("Relative humidity: ");
+  Serial.print(humidityTemperature[0] / 10.0f);
+  Serial.println(" %");
+  Serial.print("Air temperature: ");
+  Serial.print(((int16_t)humidityTemperature[1]) / 10.0f);
+  Serial.println(" C");
+  Serial.print("Barometric pressure: ");
+  Serial.print(pressure[0]);
+  Serial.println(" hPa");
+  Serial.print("Light: ");
+  Serial.print(((uint32_t)light[0] << 16) | light[1]);
+  Serial.println(" lux");
+  Serial.print("Accumulated rainfall: ");
+  Serial.print(rainfall[0] / 10.0f);
+  Serial.println(" mm");
+  Serial.println("PASS: all supported SEN0657 weather channels returned valid Modbus responses.");
 }
 
 void loop() {

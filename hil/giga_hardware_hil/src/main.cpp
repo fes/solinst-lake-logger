@@ -264,6 +264,36 @@ void handleRs485Read(char* save) {
   }
 }
 
+void handleRs485Loopback(char* save) {
+  const char* command = "RS485_LOOPBACK";
+  char* channelText = strtok_r(nullptr, " ", &save);
+  uint32_t channelNumber = 0;
+  if (channelText == nullptr || strtok_r(nullptr, " ", &save) != nullptr ||
+      !parseUnsigned(channelText, 1, 2, channelNumber)) {
+    printError(command, "usage: RS485_LOOPBACK channel");
+    return;
+  }
+
+  Rs485Channel& channel = channels[channelNumber - 1U];
+  if (!channel.enabled) {
+    printError(command, "channel disabled in hil_config.h");
+    return;
+  }
+  if (!rs485Bridge.configure(
+          channel.channel, 19200,
+          Sc16is752Spi::LineFormat::EIGHT_N_ONE)) {
+    printError(command, "SC16IS752 bridge unavailable");
+    return;
+  }
+
+  const bool ok = rs485Bridge.internalLoopbackTest(channel.channel, 100U);
+  beginResponse(command, ok);
+  Serial.print(",\"channel\":");
+  Serial.print(channelNumber);
+  if (!ok) Serial.print(",\"error\":\"internal UART loopback failed\"");
+  Serial.println("}");
+}
+
 void handleEpaperWait(char* save) {
   const char* command = "EPAPER_WAIT_IDLE";
   char* timeoutText = strtok_r(nullptr, " ", &save);
@@ -325,6 +355,8 @@ void handleCommand(char* line) {
     handleStatus();
   } else if (strcmp(command, "RS485_READ") == 0) {
     handleRs485Read(save);
+  } else if (strcmp(command, "RS485_LOOPBACK") == 0) {
+    handleRs485Loopback(save);
   } else if (strcmp(command, "EPAPER_WAIT_IDLE") == 0) {
     handleEpaperWait(save);
   } else if (strcmp(command, "EPAPER_RESET") == 0) {
@@ -366,6 +398,10 @@ void setup() {
     if (HIL_EPAPER_BUSY_PIN >= 0) {
       pinMode(HIL_EPAPER_BUSY_PIN, INPUT_PULLDOWN);
     }
+  } else {
+    configureOutputPin(
+        HIL_EPAPER_POWER_PIN,
+        HIL_EPAPER_POWER_ENABLE_LEVEL == HIGH ? LOW : HIGH);
   }
 
   Serial.println("{\"hil_protocol\":1,\"event\":\"ready\"}");

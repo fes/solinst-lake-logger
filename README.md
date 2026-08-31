@@ -88,7 +88,7 @@ The Giga profile assumes:
 - Solinst 301 on SC16IS752 channel 1, 19200 baud, 8E1
 - DFRobot SEN0657 on SC16IS752 channel 2, address 2, 19200 baud, 8N1
 - both channel mode switches set to Half-auto/manual (positions 3 and 4 ON,
-  positions 1 and 2 OFF); EN1/EN2 are HIGH for transmit and idle LOW for
+  positions 1 and 2 OFF); EN1/EN2 are LOW for transmit and idle HIGH for
   receive
 - 3.3 V UART/GPIO signaling; Giga GPIO must never receive 5 V
 - the same INA228 addresses and current-path orientation as Opta

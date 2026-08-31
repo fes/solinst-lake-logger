@@ -5,7 +5,7 @@ constexpr int GIGA_RS485_CS_PIN = 5;
 constexpr int GIGA_RS485_IRQ_PIN = 4;
 constexpr int GIGA_RS485_CHANNEL1_ENABLE_PIN = 3;
 constexpr int GIGA_RS485_CHANNEL2_ENABLE_PIN = 2;
-constexpr uint8_t GIGA_RS485_TRANSMIT_ENABLE_LEVEL = HIGH;
+constexpr uint8_t GIGA_RS485_TRANSMIT_ENABLE_LEVEL = LOW;
 
 // Waveshare SKU 26376: GDEQ0426T82 / SSD1677, 800x480 black and white.
 // SPI1 uses D11 MOSI and D13 SCK on the standard Giga header.

@@ -8,11 +8,13 @@ constexpr uint8_t REG_RHR_THR = 0x00;
 constexpr uint8_t REG_IER = 0x01;
 constexpr uint8_t REG_FCR = 0x02;
 constexpr uint8_t REG_LCR = 0x03;
+constexpr uint8_t REG_MCR = 0x04;
 constexpr uint8_t REG_LSR = 0x05;
 constexpr uint8_t REG_SPR = 0x07;
 constexpr uint8_t REG_RXLVL = 0x09;
 
 constexpr uint8_t LCR_DLAB = 0x80;
+constexpr uint8_t MCR_LOOPBACK = 0x10;
 constexpr uint8_t LSR_TRANSMITTER_EMPTY = 0x40;
 
 }  // namespace
@@ -149,6 +151,35 @@ int Sc16is752Spi::transmitAvailable(uint8_t channel) {
 uint8_t Sc16is752Spi::lineStatus(uint8_t channel) {
   if (!started_ || !validChannel(channel)) return 0;
   return readRegister(channel, REG_LSR);
+}
+
+bool Sc16is752Spi::internalLoopbackTest(
+    uint8_t channel, uint32_t timeoutMs) {
+  if (!started_ || !validChannel(channel) || baud_[channel] == 0 ||
+      timeoutMs == 0) {
+    return false;
+  }
+
+  constexpr uint8_t testBytes[] = {0x55, 0xAA, 0x00, 0xFF};
+  clearReceive(channel, 2U, 20U);
+  writeRegister(channel, REG_MCR, MCR_LOOPBACK);
+  writeFifo(channel, testBytes, sizeof(testBytes));
+
+  const uint32_t startedMs = millis();
+  while (available(channel) < static_cast<int>(sizeof(testBytes)) &&
+         millis() - startedMs < timeoutMs) {
+    delay(1);
+  }
+
+  bool matched =
+      available(channel) >= static_cast<int>(sizeof(testBytes));
+  for (uint8_t expected : testBytes) {
+    const int received = read(channel);
+    if (received != expected) matched = false;
+  }
+  writeRegister(channel, REG_MCR, 0x00);
+  clearReceive(channel, 2U, 20U);
+  return matched;
 }
 
 bool Sc16is752Spi::interruptActive() const {
