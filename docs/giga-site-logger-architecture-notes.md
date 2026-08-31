@@ -28,8 +28,12 @@ Current boundaries:
 
 Production Giga supports Waveshare SKU 26376: the black/white 800x480
 GDEQ0426T82/SSD1677 panel through GxEPD2 on `SPI1`. It uses D10 CS, D9 DC,
-D8 RST, D7 BUSY, D6 PWR, D11 MOSI, and D13 SCK. Display failures fail open and
-cannot block sensing or upload indefinitely.
+D8 RST, D7 BUSY, D6 PWR, D11 MOSI, and D13 SCK. Its GH1.25 VCC must be 3.3 V
+to match the Giga's 3.3 V GPIO; using 5 V VCC makes the HAT's translated host
+side 5 V and is not a valid Giga configuration. Display failures fail open and
+cannot block sensing or upload indefinitely. The deployed panel path inverts
+bitmap polarity, so production maps logical black and white to the opposite
+GxEPD2 buffer values.
 
 The Waveshare 2-CH RS485 HAT shares SPI1 with the display and uses D5 CS,
 D4 IRQ, D3 EN1, D2 EN2, and D12 MISO. Its SC16IS752 provides independent

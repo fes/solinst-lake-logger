@@ -11,6 +11,10 @@ namespace {
 
 constexpr uint16_t EPAPER_PAGE_HEIGHT = 40;
 constexpr uint32_t DISPLAY_RETRY_INTERVAL_MS = 60UL * 1000UL;
+constexpr uint16_t EPAPER_BLACK =
+    GIGA_EPAPER_INVERT_COLORS ? GxEPD_WHITE : GxEPD_BLACK;
+constexpr uint16_t EPAPER_WHITE =
+    GIGA_EPAPER_INVERT_COLORS ? GxEPD_BLACK : GxEPD_WHITE;
 static_assert(
     GxEPD2_426_GDEQ0426T82::WIDTH * EPAPER_PAGE_HEIGHT / 8U <= 4096U,
     "E-paper page buffer exceeds the Giga memory budget");
@@ -53,20 +57,20 @@ void printAt(int16_t x, int16_t y, uint8_t size, const char* text) {
 
 void drawWidget(int16_t x, int16_t y, int16_t width, int16_t height,
                 const char* title) {
-  epaper.drawRoundRect(x, y, width, height, 10, GxEPD_BLACK);
-  epaper.fillRoundRect(x + 1, y + 1, width - 2, 30, 9, GxEPD_BLACK);
-  epaper.setTextColor(GxEPD_WHITE);
+  epaper.drawRoundRect(x, y, width, height, 10, EPAPER_BLACK);
+  epaper.fillRoundRect(x + 1, y + 1, width - 2, 30, 9, EPAPER_BLACK);
+  epaper.setTextColor(EPAPER_WHITE);
   printAt(x + 12, y + 22, 2, title);
-  epaper.setTextColor(GxEPD_BLACK);
+  epaper.setTextColor(EPAPER_BLACK);
 }
 
 void drawDashboard(const logger_core::SiteSnapshot& snapshot) {
   char line[96];
   char age[24];
 
-  epaper.fillScreen(GxEPD_WHITE);
-  epaper.fillRect(0, 0, epaper.width(), 38, GxEPD_BLACK);
-  epaper.setTextColor(GxEPD_WHITE);
+  epaper.fillScreen(EPAPER_WHITE);
+  epaper.fillRect(0, 0, epaper.width(), 38, EPAPER_BLACK);
+  epaper.setTextColor(EPAPER_WHITE);
   snprintf(line, sizeof(line), "%.18s", DEVICE_ID);
   printAt(10, 26, 2, line);
   snprintf(line, sizeof(line), "%s  WiFi %s %lddBm",
@@ -78,7 +82,7 @@ void drawDashboard(const logger_core::SiteSnapshot& snapshot) {
            snapshot.ipAddress[0], snapshot.ipAddress[1],
            snapshot.ipAddress[2], snapshot.ipAddress[3]);
   printAt(610, 26, 2, line);
-  epaper.setTextColor(GxEPD_BLACK);
+  epaper.setTextColor(EPAPER_BLACK);
 
   drawWidget(10, 50, 380, 170, "WATER");
   if (snapshot.waterValid) {
@@ -158,7 +162,7 @@ void drawDashboard(const logger_core::SiteSnapshot& snapshot) {
            snapshot.clockValid ? "SYNCED" : "INVALID");
   printAt(428, 372, 2, line);
 
-  epaper.drawFastHLine(10, 423, 780, GxEPD_BLACK);
+  epaper.drawFastHLine(10, 423, 780, EPAPER_BLACK);
   snprintf(line, sizeof(line), "15m partial  24h full  /status  %s",
            uploadEndpointModeName());
   printAt(12, 452, 2, line);
@@ -195,7 +199,7 @@ bool renderSnapshot(
   do {
     drawDashboard(snapshot);
   } while (epaper.nextPage());
-  if (digitalRead(GIGA_EPAPER_BUSY_PIN) == GIGA_EPAPER_BUSY_LEVEL) {
+  if (!waitForDisplayIdle(GIGA_EPAPER_BUSY_TIMEOUT_MS)) {
     Serial.println("E-paper BUSY timeout after refresh");
     displayAwake = false;
     return false;
@@ -213,9 +217,14 @@ bool initDisplay() {
     return false;
   }
 
+  pinMode(GIGA_EPAPER_POWER_PIN, OUTPUT);
+  digitalWrite(
+      GIGA_EPAPER_POWER_PIN,
+      GIGA_EPAPER_POWER_ENABLE_LEVEL == HIGH ? LOW : HIGH);
+  delay(100);
   digitalWrite(
       GIGA_EPAPER_POWER_PIN, GIGA_EPAPER_POWER_ENABLE_LEVEL);
-  pinMode(GIGA_EPAPER_POWER_PIN, OUTPUT);
+  delay(100);
   pinMode(GIGA_EPAPER_BUSY_PIN, INPUT);
   epaper.epd2.selectSPI(
       SPI1, SPISettings(4000000, MSBFIRST, SPI_MODE0));
@@ -226,6 +235,7 @@ bool initDisplay() {
   displayPresent = true;
   displayAwake = false;
   displayRefreshPending = true;
+  refreshState = logger_core::EpaperRefreshState();
   Serial.println(
       "Waveshare 4.26-inch GDEQ0426T82 e-paper initialized on SPI1");
   return true;

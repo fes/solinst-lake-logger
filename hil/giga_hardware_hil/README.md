@@ -2,8 +2,8 @@
 
 This standalone Arduino GIGA R1 M7 image exposes bounded diagnostic commands
 over the USB serial port. It does not contain Wi-Fi credentials, upload data,
-format storage, change Modbus registers, or render controller-specific e-paper
-commands.
+format storage, or change Modbus registers. E-paper pixel output is limited to
+the confirmation-gated test-pattern command.
 
 Copy `include/hil_config.example.h` to `include/hil_config.h` and replace its
 values from the reviewed wiring diagram. The Waveshare SC16IS752 on SPI1
@@ -26,10 +26,11 @@ Supported commands:
 - `HELLO`
 - `STATUS`
 - `RS485_READ channel baud 8N1|8E1 slave function start quantity timeout_ms`
+- `RS485_LOOPBACK channel`
 - `EPAPER_WAIT_IDLE timeout_ms`
 - `EPAPER_RESET CONFIRM`
+- `EPAPER_PATTERN CONFIRM`
 
-Only Modbus read functions `0x03` and `0x04` are accepted. E-paper reset
-requires the literal confirmation token. This standalone image deliberately
-does not render pixels; production firmware uses the exact GxEPD2
-GDEQ0426T82/SSD1677 driver for Waveshare SKU 26376.
+Only Modbus read functions `0x03` and `0x04` are accepted. E-paper reset and
+pattern output require the literal confirmation token. Pattern output uses the
+same GxEPD2 GDEQ0426T82/SSD1677 driver as production firmware.

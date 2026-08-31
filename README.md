@@ -93,14 +93,18 @@ The Giga profile assumes:
 - 3.3 V UART/GPIO signaling; Giga GPIO must never receive 5 V
 - the same INA228 addresses and current-path orientation as Opta
 - Waveshare SKU 26376 e-paper on `SPI1`: D10 CS, D9 DC, D8 RST, D7 BUSY,
-  D6 PWR, D11 MOSI, and D13 SCK
+  D6 PWR, D11 MOSI, and D13 SCK. Power the GH1.25 connector from **3.3 V**:
+  Waveshare requires its VCC and host I/O voltage to match, and Giga GPIO is
+  3.3 V only. Do not power this connection from 5 V.
 
 SKU 26376 uses the black/white `GDEQ0426T82`/SSD1677 panel and GxEPD2's
 `GxEPD2_426_GDEQ0426T82` driver. The similarly sized Waveshare four-color
-variant is incompatible. The dashboard uses a 40-row/4 KB paged framebuffer,
-15-minute partial updates, a daily full refresh, bounded BUSY waits, and powers
-the panel controller off between updates. The HAT PWR line remains enabled so
-the controller RAM needed for fast partial refreshes is retained.
+variant is incompatible. The installed panel's bitmap polarity is inverted by
+the board path, so the Giga profile compensates logical black and white. The
+dashboard uses a 40-row/4 KB paged framebuffer, 15-minute partial updates, a
+daily full refresh, bounded BUSY waits, and powers the panel controller off
+between updates. The HAT PWR line remains enabled so the controller RAM needed
+for fast partial refreshes is retained.
 
 ### INA228 addressing
 

@@ -1,4 +1,7 @@
 #include <Arduino.h>
+#include <GxEPD2_BW.h>
+#include <SPI.h>
+#include <gdeq/GxEPD2_426_GDEQ0426T82.h>
 
 #include <logger_core/modbus_codec.h>
 #include <sc16is752_spi.h>
@@ -17,6 +20,11 @@ constexpr uint32_t CONTROL_BAUD = 115200;
 constexpr size_t COMMAND_BYTES = 192;
 constexpr size_t RESPONSE_BYTES = 96;
 constexpr uint16_t MAX_HIL_REGISTERS = 32;
+constexpr uint16_t EPAPER_PAGE_HEIGHT = 40;
+constexpr uint16_t EPAPER_BLACK =
+    HIL_EPAPER_INVERT_COLORS ? GxEPD_WHITE : GxEPD_BLACK;
+constexpr uint16_t EPAPER_WHITE =
+    HIL_EPAPER_INVERT_COLORS ? GxEPD_BLACK : GxEPD_WHITE;
 
 char commandBuffer[COMMAND_BYTES];
 size_t commandLength = 0;
@@ -36,6 +44,11 @@ Sc16is752Spi rs485Bridge(
     HIL_RS485_CHANNEL1_ENABLE_PIN, HIL_RS485_CHANNEL2_ENABLE_PIN,
     HIL_RS485_TRANSMIT_ENABLE_LEVEL);
 bool rs485BridgePresent = false;
+GxEPD2_BW<GxEPD2_426_GDEQ0426T82, EPAPER_PAGE_HEIGHT> epaper(
+    GxEPD2_426_GDEQ0426T82(
+        HIL_EPAPER_CS_PIN, HIL_EPAPER_DC_PIN, HIL_EPAPER_RST_PIN,
+        HIL_EPAPER_BUSY_PIN));
+bool epaperInitialized = false;
 
 void printJsonString(const char* value) {
   Serial.print('"');
@@ -344,6 +357,56 @@ void handleEpaperReset(char* save) {
   Serial.println(",\"reset_pulsed\":true}");
 }
 
+void handleEpaperPattern(char* save) {
+  const char* command = "EPAPER_PATTERN";
+  char* confirmation = strtok_r(nullptr, " ", &save);
+  if (confirmation == nullptr || strcmp(confirmation, "CONFIRM") != 0 ||
+      strtok_r(nullptr, " ", &save) != nullptr) {
+    printError(command, "explicit CONFIRM token required");
+    return;
+  }
+  if (!HIL_EPAPER_ENABLED) {
+    printError(command, "e-paper disabled in hil_config.h");
+    return;
+  }
+
+  const uint32_t startedMs = millis();
+  if (!epaperInitialized) {
+    epaper.epd2.selectSPI(
+        SPI1, SPISettings(4000000, MSBFIRST, SPI_MODE0));
+    epaper.init(0, true, 10, false);
+    epaper.setRotation(0);
+    epaper.setTextWrap(false);
+    epaperInitialized = true;
+  }
+
+  epaper.setFullWindow();
+  epaper.firstPage();
+  do {
+    epaper.fillScreen(EPAPER_WHITE);
+    epaper.fillRect(
+        0, 0, epaper.width() / 2, epaper.height(), EPAPER_BLACK);
+    epaper.setTextColor(EPAPER_WHITE);
+    epaper.setTextSize(5);
+    epaper.setCursor(90, 250);
+    epaper.print("BLACK");
+    epaper.setTextColor(EPAPER_BLACK);
+    epaper.setCursor(490, 250);
+    epaper.print("WHITE");
+  } while (epaper.nextPage());
+  epaper.powerOff();
+
+  const bool idle =
+      digitalRead(HIL_EPAPER_BUSY_PIN) != HIL_EPAPER_BUSY_LEVEL;
+  beginResponse(command, idle);
+  Serial.print(",\"idle\":");
+  Serial.print(idle ? "true" : "false");
+  Serial.print(",\"elapsed_ms\":");
+  Serial.print(millis() - startedMs);
+  if (!idle) Serial.print(",\"error\":\"e-paper busy after refresh\"");
+  Serial.println("}");
+}
+
 void handleCommand(char* line) {
   char* save = nullptr;
   char* command = strtok_r(line, " ", &save);
@@ -361,6 +424,8 @@ void handleCommand(char* line) {
     handleEpaperWait(save);
   } else if (strcmp(command, "EPAPER_RESET") == 0) {
     handleEpaperReset(save);
+  } else if (strcmp(command, "EPAPER_PATTERN") == 0) {
+    handleEpaperPattern(save);
   } else {
     printError(command, "unknown or malformed command");
   }
@@ -394,7 +459,12 @@ void setup() {
     configureOutputPin(HIL_EPAPER_DC_PIN, LOW);
     configureOutputPin(HIL_EPAPER_RST_PIN, HIGH);
     configureOutputPin(
+        HIL_EPAPER_POWER_PIN,
+        HIL_EPAPER_POWER_ENABLE_LEVEL == HIGH ? LOW : HIGH);
+    delay(100);
+    digitalWrite(
         HIL_EPAPER_POWER_PIN, HIL_EPAPER_POWER_ENABLE_LEVEL);
+    delay(100);
     if (HIL_EPAPER_BUSY_PIN >= 0) {
       pinMode(HIL_EPAPER_BUSY_PIN, INPUT_PULLDOWN);
     }

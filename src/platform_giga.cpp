@@ -18,7 +18,8 @@ void beginGigaPlatform() {
   pinMode(GIGA_EPAPER_CS_PIN, OUTPUT);
   if (GIGA_EPAPER_ENABLED) {
     digitalWrite(
-        GIGA_EPAPER_POWER_PIN, GIGA_EPAPER_POWER_ENABLE_LEVEL);
+        GIGA_EPAPER_POWER_PIN,
+        GIGA_EPAPER_POWER_ENABLE_LEVEL == HIGH ? LOW : HIGH);
     pinMode(GIGA_EPAPER_POWER_PIN, OUTPUT);
   }
   SPI1.begin();

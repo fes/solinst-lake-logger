@@ -209,10 +209,14 @@ python3 tools/giga_hil.py /dev/cu.usbmodem101 --suite full \
 
 The firmware itself also requires the literal `CONFIRM` protocol token. The
 tracked wiring for Waveshare SKU 26376 is D10 CS, D9 DC, D8 RST, D7 BUSY,
-D11 MOSI, and D13 SCK. Confirm those connections physically before running an
-output test. Automated tests can validate driver compilation, policy, BUSY
-timeouts, and refresh counters; final pixel appearance still requires visual
-inspection or a camera-based fixture.
+D11 MOSI, D13 SCK, and D6 PWR, with GH1.25 VCC connected to 3.3 V. VCC must
+match the Giga's 3.3 V I/O level; do not use 5 V for this wiring. Confirm those
+connections physically before running an output test. Automated tests can
+validate driver compilation, policy, BUSY timeouts, and refresh counters; final
+pixel appearance still requires visual inspection or a camera-based fixture.
+The combined HIL `EPAPER_PATTERN CONFIRM` command performs a full 4 MHz panel
+refresh while leaving both RS-485 channels available for immediate before/after
+Modbus reads.
 
 ### 8. Fault injection
 
