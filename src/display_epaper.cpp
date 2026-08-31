@@ -2,25 +2,23 @@
 
 #if defined(LOGGER_BOARD_GIGA)
 #include <GxEPD2_BW.h>
-#include <gdeq/GxEPD2_426_GDEQ0426T82.h>
 #include <SPI.h>
 
+#include <gdeq0426t82_driver.h>
 #include "giga_board_config.h"
 
 namespace {
 
 constexpr uint16_t EPAPER_PAGE_HEIGHT = 40;
 constexpr uint32_t DISPLAY_RETRY_INTERVAL_MS = 60UL * 1000UL;
-constexpr uint16_t EPAPER_BLACK =
-    GIGA_EPAPER_INVERT_COLORS ? GxEPD_WHITE : GxEPD_BLACK;
-constexpr uint16_t EPAPER_WHITE =
-    GIGA_EPAPER_INVERT_COLORS ? GxEPD_BLACK : GxEPD_WHITE;
+constexpr uint16_t EPAPER_BLACK = GxEPD_BLACK;
+constexpr uint16_t EPAPER_WHITE = GxEPD_WHITE;
 static_assert(
-    GxEPD2_426_GDEQ0426T82::WIDTH * EPAPER_PAGE_HEIGHT / 8U <= 4096U,
+    Gdeq0426t82Driver::WIDTH * EPAPER_PAGE_HEIGHT / 8U <= 4096U,
     "E-paper page buffer exceeds the Giga memory budget");
 
-GxEPD2_BW<GxEPD2_426_GDEQ0426T82, EPAPER_PAGE_HEIGHT> epaper(
-    GxEPD2_426_GDEQ0426T82(
+GxEPD2_BW<Gdeq0426t82Driver, EPAPER_PAGE_HEIGHT> epaper(
+    Gdeq0426t82Driver(
         GIGA_EPAPER_CS_PIN, GIGA_EPAPER_DC_PIN, GIGA_EPAPER_RST_PIN,
         GIGA_EPAPER_BUSY_PIN));
 

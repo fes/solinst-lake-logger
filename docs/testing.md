@@ -216,7 +216,9 @@ validate driver compilation, policy, BUSY timeouts, and refresh counters; final
 pixel appearance still requires visual inspection or a camera-based fixture.
 The combined HIL `EPAPER_PATTERN CONFIRM` command performs a full 4 MHz panel
 refresh while leaving both RS-485 channels available for immediate before/after
-Modbus reads.
+Modbus reads. A full refresh should take approximately three to five seconds
+and settle to saturated black, not the gray produced by GxEPD2's forced 90 C
+waveform.
 
 ### 8. Fault injection
 

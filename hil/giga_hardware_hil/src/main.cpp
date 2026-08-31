@@ -1,8 +1,8 @@
 #include <Arduino.h>
 #include <GxEPD2_BW.h>
 #include <SPI.h>
-#include <gdeq/GxEPD2_426_GDEQ0426T82.h>
 
+#include <gdeq0426t82_driver.h>
 #include <logger_core/modbus_codec.h>
 #include <sc16is752_spi.h>
 
@@ -21,10 +21,8 @@ constexpr size_t COMMAND_BYTES = 192;
 constexpr size_t RESPONSE_BYTES = 96;
 constexpr uint16_t MAX_HIL_REGISTERS = 32;
 constexpr uint16_t EPAPER_PAGE_HEIGHT = 40;
-constexpr uint16_t EPAPER_BLACK =
-    HIL_EPAPER_INVERT_COLORS ? GxEPD_WHITE : GxEPD_BLACK;
-constexpr uint16_t EPAPER_WHITE =
-    HIL_EPAPER_INVERT_COLORS ? GxEPD_BLACK : GxEPD_WHITE;
+constexpr uint16_t EPAPER_BLACK = GxEPD_BLACK;
+constexpr uint16_t EPAPER_WHITE = GxEPD_WHITE;
 
 char commandBuffer[COMMAND_BYTES];
 size_t commandLength = 0;
@@ -44,8 +42,8 @@ Sc16is752Spi rs485Bridge(
     HIL_RS485_CHANNEL1_ENABLE_PIN, HIL_RS485_CHANNEL2_ENABLE_PIN,
     HIL_RS485_TRANSMIT_ENABLE_LEVEL);
 bool rs485BridgePresent = false;
-GxEPD2_BW<GxEPD2_426_GDEQ0426T82, EPAPER_PAGE_HEIGHT> epaper(
-    GxEPD2_426_GDEQ0426T82(
+GxEPD2_BW<Gdeq0426t82Driver, EPAPER_PAGE_HEIGHT> epaper(
+    Gdeq0426t82Driver(
         HIL_EPAPER_CS_PIN, HIL_EPAPER_DC_PIN, HIL_EPAPER_RST_PIN,
         HIL_EPAPER_BUSY_PIN));
 bool epaperInitialized = false;
@@ -383,16 +381,11 @@ void handleEpaperPattern(char* save) {
   epaper.setFullWindow();
   epaper.firstPage();
   do {
-    epaper.fillScreen(EPAPER_WHITE);
-    epaper.fillRect(
-        0, 0, epaper.width() / 2, epaper.height(), EPAPER_BLACK);
+    epaper.fillScreen(EPAPER_BLACK);
     epaper.setTextColor(EPAPER_WHITE);
     epaper.setTextSize(5);
-    epaper.setCursor(90, 250);
-    epaper.print("BLACK");
-    epaper.setTextColor(EPAPER_BLACK);
-    epaper.setCursor(490, 250);
-    epaper.print("WHITE");
+    epaper.setCursor(150, 250);
+    epaper.print("GIGA EPAPER TEST");
   } while (epaper.nextPage());
   epaper.powerOff();
 

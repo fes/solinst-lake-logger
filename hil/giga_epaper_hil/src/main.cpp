@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <GxEPD2_BW.h>
 #include <SPI.h>
-#include <gdeq/GxEPD2_426_GDEQ0426T82.h>
+#include <gdeq0426t82_driver.h>
 
 namespace {
 
@@ -11,11 +11,11 @@ constexpr int EPAPER_RST_PIN = 8;
 constexpr int EPAPER_BUSY_PIN = 7;
 constexpr int EPAPER_POWER_PIN = 6;
 constexpr uint16_t PAGE_HEIGHT = 40;
-constexpr uint16_t EPAPER_BLACK = GxEPD_WHITE;
-constexpr uint16_t EPAPER_WHITE = GxEPD_BLACK;
+constexpr uint16_t EPAPER_BLACK = GxEPD_BLACK;
+constexpr uint16_t EPAPER_WHITE = GxEPD_WHITE;
 
-GxEPD2_BW<GxEPD2_426_GDEQ0426T82, PAGE_HEIGHT> display(
-    GxEPD2_426_GDEQ0426T82(
+GxEPD2_BW<Gdeq0426t82Driver, PAGE_HEIGHT> display(
+    Gdeq0426t82Driver(
         EPAPER_CS_PIN, EPAPER_DC_PIN, EPAPER_RST_PIN, EPAPER_BUSY_PIN));
 
 void reportBusy(const char* phase) {

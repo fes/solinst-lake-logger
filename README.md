@@ -99,8 +99,11 @@ The Giga profile assumes:
 
 SKU 26376 uses the black/white `GDEQ0426T82`/SSD1677 panel and GxEPD2's
 `GxEPD2_426_GDEQ0426T82` driver. The similarly sized Waveshare four-color
-variant is incompatible. The installed panel's bitmap polarity is inverted by
-the board path, so the Giga profile compensates logical black and white. The
+variant is incompatible. GxEPD2's default fast-full path forces the controller
+temperature register to 90 C, which selects a weak high-temperature waveform
+and leaves this panel gray at room temperature. The logger instead uses the
+SSD1677's documented `0x91` LUT-load and `0xC7` display sequence with the
+validated 25 C waveform. Standard GxEPD2 black/white polarity is used. The
 dashboard uses a 40-row/4 KB paged framebuffer, 15-minute partial updates, a
 daily full refresh, bounded BUSY waits, and powers the panel controller off
 between updates. The HAT PWR line remains enabled so the controller RAM needed
