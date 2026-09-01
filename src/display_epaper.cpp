@@ -53,16 +53,23 @@ void printAt(int16_t x, int16_t y, uint8_t size, const char* text) {
   epaper.print(text);
 }
 
+void printRightAligned(
+    int16_t right, int16_t y, uint8_t size, const char* text) {
+  const int16_t width = static_cast<int16_t>(strlen(text) * 6U * size);
+  printAt(right - width, y, size, text);
+}
+
 void drawWidget(int16_t x, int16_t y, int16_t width, int16_t height,
                 const char* title) {
   epaper.drawRoundRect(x, y, width, height, 10, EPAPER_BLACK);
   epaper.fillRoundRect(x + 1, y + 1, width - 2, 30, 9, EPAPER_BLACK);
   epaper.setTextColor(EPAPER_WHITE);
-  printAt(x + 12, y + 22, 2, title);
+  printAt(x + 12, y + 8, 2, title);
   epaper.setTextColor(EPAPER_BLACK);
 }
 
-void drawDashboard(const logger_core::SiteSnapshot& snapshot) {
+void drawDashboard(const logger_core::SiteSnapshot& snapshot,
+                   const char* refreshUtc) {
   char line[96];
   char age[24];
 
@@ -70,16 +77,20 @@ void drawDashboard(const logger_core::SiteSnapshot& snapshot) {
   epaper.fillRect(0, 0, epaper.width(), 38, EPAPER_BLACK);
   epaper.setTextColor(EPAPER_WHITE);
   snprintf(line, sizeof(line), "%.18s", DEVICE_ID);
-  printAt(10, 26, 2, line);
+  printAt(10, 10, 2, line);
   snprintf(line, sizeof(line), "%s  WiFi %s %lddBm",
            logger_core::siteHealthName(snapshot.health),
            snapshot.wifiConnected ? "ON" : "OFF",
            static_cast<long>(snapshot.wifiRssiDbm));
-  printAt(250, 26, 2, line);
-  snprintf(line, sizeof(line), "%u.%u.%u.%u",
-           snapshot.ipAddress[0], snapshot.ipAddress[1],
-           snapshot.ipAddress[2], snapshot.ipAddress[3]);
-  printAt(610, 26, 2, line);
+  printAt(250, 10, 2, line);
+  if (snapshot.wifiConnected) {
+    snprintf(line, sizeof(line), "%u.%u.%u.%u",
+             snapshot.ipAddress[0], snapshot.ipAddress[1],
+             snapshot.ipAddress[2], snapshot.ipAddress[3]);
+  } else {
+    snprintf(line, sizeof(line), "OFFLINE");
+  }
+  printRightAligned(790, 10, 2, line);
   epaper.setTextColor(EPAPER_BLACK);
 
   drawWidget(10, 50, 380, 170, "WATER");
@@ -160,10 +171,16 @@ void drawDashboard(const logger_core::SiteSnapshot& snapshot) {
            snapshot.clockValid ? "SYNCED" : "INVALID");
   printAt(428, 372, 2, line);
 
-  epaper.drawFastHLine(10, 423, 780, EPAPER_BLACK);
-  snprintf(line, sizeof(line), "15m partial  24h full  /status  %s",
+  epaper.drawFastHLine(10, 416, 780, EPAPER_BLACK);
+  snprintf(
+      line, sizeof(line), "UI refreshed: %s",
+      refreshUtc != nullptr && refreshUtc[0] != '\0'
+          ? refreshUtc
+          : "clock unavailable");
+  printAt(12, 426, 2, line);
+  snprintf(line, sizeof(line), "15m partial | 24h full | /status | %s",
            uploadEndpointModeName());
-  printAt(12, 452, 2, line);
+  printAt(12, 454, 1, line);
 }
 
 bool waitForDisplayIdle(uint32_t timeoutMs) {
@@ -180,7 +197,8 @@ bool waitForDisplayIdle(uint32_t timeoutMs) {
 
 bool renderSnapshot(
     const logger_core::SiteSnapshot& snapshot,
-    logger_core::EpaperRefreshDecision decision) {
+    logger_core::EpaperRefreshDecision decision,
+    const char* refreshUtc) {
   if (!waitForDisplayIdle(GIGA_EPAPER_BUSY_TIMEOUT_MS)) {
     Serial.println("E-paper BUSY timeout before refresh");
     return false;
@@ -195,7 +213,7 @@ bool renderSnapshot(
   displayAwake = true;
   epaper.firstPage();
   do {
-    drawDashboard(snapshot);
+    drawDashboard(snapshot, refreshUtc);
   } while (epaper.nextPage());
   if (!waitForDisplayIdle(GIGA_EPAPER_BUSY_TIMEOUT_MS)) {
     Serial.println("E-paper BUSY timeout after refresh");
@@ -268,7 +286,8 @@ void updateDisplay() {
   if (decision == logger_core::EpaperRefreshDecision::NONE) return;
 
   displayRefreshPending = false;
-  if (!renderSnapshot(snapshot, decision)) {
+  const String refreshUtc = nowUtcString();
+  if (!renderSnapshot(snapshot, decision, refreshUtc.c_str())) {
     displayPresent = false;
     nextDisplayAttemptMs = nowMs + DISPLAY_RETRY_INTERVAL_MS;
     return;
@@ -277,7 +296,7 @@ void updateDisplay() {
   logger_core::recordEpaperRefresh(
       nowMs, snapshot, decision, refreshState);
   lastDisplayRefreshMs = nowMs;
-  lastDisplayRefreshUtcValue = nowUtcString();
+  lastDisplayRefreshUtcValue = refreshUtc;
   ++displayRefreshCountLocal;
 }
 

@@ -106,8 +106,9 @@ SSD1677's documented `0x91` LUT-load and `0xC7` display sequence with the
 validated 25 C waveform. Standard GxEPD2 black/white polarity is used. The
 dashboard uses a 40-row/4 KB paged framebuffer, 15-minute partial updates, a
 daily full refresh, bounded BUSY waits, and powers the panel controller off
-between updates. The HAT PWR line remains enabled so the controller RAM needed
-for fast partial refreshes is retained.
+between updates. Its footer records the UTC time represented by the completed
+UI refresh. The HAT PWR line remains enabled so the controller RAM needed for
+fast partial refreshes is retained.
 
 ### INA228 addressing
 
