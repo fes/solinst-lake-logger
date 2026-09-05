@@ -53,10 +53,11 @@ bool writeHttpBytes(
   size_t offset = 0;
   while (offset < length && millis() - startedMs < 5000UL) {
     const size_t chunk =
-        min(static_cast<size_t>(512), length - offset);
+        min(static_cast<size_t>(128), length - offset);
     const size_t written = client.write(data + offset, chunk);
     if (written > 0) {
       offset += written;
+      delay(2);
     } else {
       delay(1);
     }
@@ -72,7 +73,7 @@ bool writeHttpString(WiFiClient& client, const String& value) {
 
 void closeHttpClient(WiFiClient& client) {
   // Mbed close() can discard queued response data on higher-latency Wi-Fi.
-  delay(200);
+  delay(500);
   client.stop();
 }
 
