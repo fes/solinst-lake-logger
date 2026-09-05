@@ -71,6 +71,12 @@ bool writeHttpString(WiFiClient& client, const String& value) {
       value.length());
 }
 
+void closeHttpClient(WiFiClient& client) {
+  // Mbed close() can discard queued response data on higher-latency Wi-Fi.
+  delay(200);
+  client.stop();
+}
+
 void sendHttpJson(WiFiClient &client, int statusCode, const String &body,
                   const char* extraHeader) {
   String formattedBody = prettyJson(body);
@@ -285,7 +291,7 @@ logger_core::RequestLineReadResult readRequestLine(
   unsigned long start = millis();
   receivedByte = false;
 
-  while (client.connected() && millis() - start < 2000UL) {
+  while (millis() - start < 2000UL) {
     while (client.available()) {
       receivedByte = true;
       const logger_core::RequestLineReadResult result =
@@ -303,7 +309,7 @@ logger_core::HeaderParseResult readHttpHeaders(WiFiClient &client) {
   unsigned long start = millis();
   logger_core::HeaderParser parser;
 
-  while (client.connected() && millis() - start < 4000UL) {
+  while (millis() - start < 4000UL) {
     while (client.available()) {
       const logger_core::HeaderParseResult result =
           logger_core::consumeHeaderByte(parser, client.read());
@@ -335,17 +341,17 @@ void handleHttpClient() {
       readRequestLine(client, requestLineReader, receivedRequestByte);
   if (!receivedRequestByte) {
     Serial.println("HTTP: empty request line, closing client");
-    client.stop();
+    closeHttpClient(client);
     return;
   }
   if (readResult == logger_core::RequestLineReadResult::TOO_LONG) {
     sendHttpError(client, 414, "request line too long");
-    client.stop();
+    closeHttpClient(client);
     return;
   }
   if (readResult != logger_core::RequestLineReadResult::COMPLETE) {
     sendHttpError(client, 400, "malformed request line");
-    client.stop();
+    closeHttpClient(client);
     return;
   }
 
@@ -355,24 +361,24 @@ void handleHttpClient() {
           requestLineReader.line, requestLineReader.length, request);
   if (parseResult == logger_core::HttpRequestParseResult::URI_TOO_LONG) {
     sendHttpError(client, 414, "request target too long");
-    client.stop();
+    closeHttpClient(client);
     return;
   }
   if (parseResult != logger_core::HttpRequestParseResult::OK) {
     sendHttpError(client, 400, "malformed request line");
-    client.stop();
+    closeHttpClient(client);
     return;
   }
 
   const logger_core::HeaderParseResult headerResult = readHttpHeaders(client);
   if (headerResult == logger_core::HeaderParseResult::TOO_LARGE) {
     sendHttpError(client, 431, "request headers too large");
-    client.stop();
+    closeHttpClient(client);
     return;
   }
   if (headerResult != logger_core::HeaderParseResult::COMPLETE) {
     sendHttpError(client, 400, "malformed request headers");
-    client.stop();
+    closeHttpClient(client);
     return;
   }
 
@@ -410,7 +416,6 @@ void handleHttpClient() {
     Serial.println("HTTP: route not found, sending HTML index");
     sendHttpHtml(client, 404, endpointIndexHtml());
   }
-  delay(1);
-  client.stop();
+  closeHttpClient(client);
   Serial.println("HTTP: client closed");
 }
