@@ -11,7 +11,7 @@
 namespace {
 
 constexpr uint16_t EPAPER_PAGE_HEIGHT = 40;
-constexpr uint32_t DISPLAY_RETRY_INTERVAL_MS = 60UL * 1000UL;
+constexpr uint32_t DISPLAY_RETRY_INTERVAL_MS = 15UL * 60UL * 1000UL;
 constexpr uint16_t EPAPER_BLACK = GxEPD_BLACK;
 constexpr uint16_t EPAPER_WHITE = GxEPD_WHITE;
 static_assert(
