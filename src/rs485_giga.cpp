@@ -20,8 +20,7 @@ class GigaRs485Channel final : public Rs485Channel {
   bool begin(uint32_t baud, uint16_t serialConfig, uint32_t preDelayUs,
              uint32_t postDelayMarginUs) override {
     preDelayUs_ = preDelayUs;
-             postDelayMarginUs_ = postDelayMarginUs;
-             if (started_ && baud_ == baud && serialConfig_ == serialConfig) return true;
+    postDelayMarginUs_ = postDelayMarginUs;
     Sc16is752Spi::LineFormat format;
     if (serialConfig == SERIAL_8N1) {
       format = Sc16is752Spi::LineFormat::EIGHT_N_ONE;
@@ -30,10 +29,10 @@ class GigaRs485Channel final : public Rs485Channel {
     } else {
       return false;
     }
+    // Reapply channel configuration before every Modbus transaction. This
+    // matches the HIL path and resets the FIFOs so a transient SC16IS752
+    // TX-full condition cannot poison later requests.
     if (!bridge_.configure(channel_, baud, format)) return false;
-    baud_ = baud;
-    serialConfig_ = serialConfig;
-    started_ = true;
     return true;
   }
 
@@ -55,9 +54,6 @@ class GigaRs485Channel final : public Rs485Channel {
   const char* channelName_;
   Sc16is752Spi& bridge_;
   uint8_t channel_;
-  bool started_ = false;
-  uint32_t baud_ = 0;
-  uint16_t serialConfig_ = 0;
   uint32_t preDelayUs_ = 0;
   uint32_t postDelayMarginUs_ = 0;
 };

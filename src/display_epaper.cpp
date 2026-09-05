@@ -238,7 +238,9 @@ bool clearDisplayWhite(const char* successMessage) {
   do {
     epaper.fillScreen(EPAPER_WHITE);
   } while (epaper.nextPage());
-  if (!waitForDisplayIdle(GIGA_EPAPER_BUSY_TIMEOUT_MS)) {
+  // The driver already waits for BUSY during nextPage(). Do not impose a
+  // second full timeout when that bounded wait reports a stuck panel.
+  if (digitalRead(GIGA_EPAPER_BUSY_PIN) == GIGA_EPAPER_BUSY_LEVEL) {
     Serial.println("E-paper BUSY timeout after boot clear");
     displayAwake = false;
     return false;
@@ -302,7 +304,7 @@ bool renderSnapshot(
   do {
     drawDashboard(snapshot, refreshUtc);
   } while (epaper.nextPage());
-  if (!waitForDisplayIdle(GIGA_EPAPER_BUSY_TIMEOUT_MS)) {
+  if (digitalRead(GIGA_EPAPER_BUSY_PIN) == GIGA_EPAPER_BUSY_LEVEL) {
     Serial.println("E-paper BUSY timeout after refresh");
     displayAwake = false;
     return false;

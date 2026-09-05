@@ -47,6 +47,7 @@ GxEPD2_BW<Gdeq0426t82Driver, EPAPER_PAGE_HEIGHT> epaper(
         HIL_EPAPER_CS_PIN, HIL_EPAPER_DC_PIN, HIL_EPAPER_RST_PIN,
         HIL_EPAPER_BUSY_PIN));
 bool epaperInitialized = false;
+bool partialPatternBlack = false;
 
 void printJsonString(const char* value) {
   Serial.print('"');
@@ -400,6 +401,44 @@ void handleEpaperPattern(char* save) {
   Serial.println("}");
 }
 
+void handleEpaperPartialPattern(char* save) {
+  const char* command = "EPAPER_PARTIAL_PATTERN";
+  char* confirmation = strtok_r(nullptr, " ", &save);
+  if (confirmation == nullptr || strcmp(confirmation, "CONFIRM") != 0 ||
+      strtok_r(nullptr, " ", &save) != nullptr) {
+    printError(command, "explicit CONFIRM token required");
+    return;
+  }
+  if (!HIL_EPAPER_ENABLED || !epaperInitialized) {
+    printError(command, "run EPAPER_PATTERN CONFIRM first");
+    return;
+  }
+
+  partialPatternBlack = !partialPatternBlack;
+  const uint32_t startedMs = millis();
+  epaper.setPartialWindow(0, 0, epaper.width(), epaper.height());
+  epaper.firstPage();
+  do {
+    epaper.fillScreen(partialPatternBlack ? EPAPER_BLACK : EPAPER_WHITE);
+    epaper.setTextColor(
+        partialPatternBlack ? EPAPER_WHITE : EPAPER_BLACK);
+    epaper.setTextSize(5);
+    epaper.setCursor(110, 250);
+    epaper.print("PARTIAL REFRESH TEST");
+  } while (epaper.nextPage());
+  epaper.powerOff();
+
+  const bool idle =
+      digitalRead(HIL_EPAPER_BUSY_PIN) != HIL_EPAPER_BUSY_LEVEL;
+  beginResponse(command, idle);
+  Serial.print(",\"idle\":");
+  Serial.print(idle ? "true" : "false");
+  Serial.print(",\"elapsed_ms\":");
+  Serial.print(millis() - startedMs);
+  if (!idle) Serial.print(",\"error\":\"e-paper busy after partial refresh\"");
+  Serial.println("}");
+}
+
 void handleCommand(char* line) {
   char* save = nullptr;
   char* command = strtok_r(line, " ", &save);
@@ -419,6 +458,8 @@ void handleCommand(char* line) {
     handleEpaperReset(save);
   } else if (strcmp(command, "EPAPER_PATTERN") == 0) {
     handleEpaperPattern(save);
+  } else if (strcmp(command, "EPAPER_PARTIAL_PATTERN") == 0) {
+    handleEpaperPartialPattern(save);
   } else {
     printError(command, "unknown or malformed command");
   }

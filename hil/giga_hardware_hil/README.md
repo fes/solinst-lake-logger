@@ -30,6 +30,7 @@ Supported commands:
 - `EPAPER_WAIT_IDLE timeout_ms`
 - `EPAPER_RESET CONFIRM`
 - `EPAPER_PATTERN CONFIRM`
+- `EPAPER_PARTIAL_PATTERN CONFIRM` (after a full pattern)
 
 Only Modbus read functions `0x03` and `0x04` are accepted. E-paper reset and
 pattern output require the literal confirmation token. Pattern output uses the
