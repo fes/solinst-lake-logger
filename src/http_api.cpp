@@ -189,6 +189,14 @@ String statusJson() {
   body += "\"wifi_rssi_dbm\":" + String((WiFi.status() == WL_CONNECTED) ? WiFi.RSSI() : 0) + ",";
   body += "\"ip\":\"" + jsonEscape(WiFi.status() == WL_CONNECTED ? WiFi.localIP().toString() : String("")) + "\",";
   body += "\"uptime_s\":" + String((millis() - bootMs) / 1000UL) + ",";
+  body += "\"last_system_reset_reason\":\"" +
+          String(lastSystemResetReasonName()) + "\",";
+  body += "\"system_watchdog_timeout_ms\":" +
+          String(SYSTEM_WATCHDOG_TIMEOUT_MS) + ",";
+  body += "\"network_socket_timeout_ms\":" +
+          String(NETWORK_SOCKET_TIMEOUT_MS) + ",";
+  body += "\"http_response_timeout_ms\":" +
+          String(HTTP_RESPONSE_TIMEOUT_MS) + ",";
   body += "\"clock_valid\":" + String(clockValid ? "true" : "false") + ",";
   body += "\"clock_valid_check\":" + String(isClockValid() ? "true" : "false") + ",";
   body += "\"clock_now_utc\":\"" + jsonEscape(nowUtcString()) + "\",";
@@ -236,6 +244,8 @@ String statusJson() {
   body += "\"last_successful_solar_input_read_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulSolarInputReadMs)) + "\",";
   body += "\"last_successful_weather_read_utc\":\"" + jsonEscape(lastSuccessfulWeatherReadUtc) + "\",";
   body += "\"last_successful_weather_read_age\":\"" + jsonEscape(millisAgeString(lastSuccessfulWeatherReadMs)) + "\",";
+  body += "\"latest_weather_sample_fresh\":" +
+          String(latestWeatherSampleFresh() ? "true" : "false") + ",";
   body += "\"weather_sensor_init_status\":\"" + jsonEscape(weatherSensorInitStatus) + "\",";
   body += "\"last_weather_error_utc\":\"" + jsonEscape(lastWeatherErrorUtc) + "\",";
   body += "\"last_weather_error\":\"" + jsonEscape(lastWeatherError) + "\",";

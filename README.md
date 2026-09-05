@@ -104,13 +104,18 @@ temperature register to 90 C, which selects a weak high-temperature waveform
 and leaves this panel gray at room temperature. The logger instead uses the
 SSD1677's documented `0x91` LUT-load and `0xC7` display sequence with the
 validated 25 C waveform. Standard GxEPD2 black/white polarity is used. The
-dashboard uses a 40-row/4 KB paged framebuffer, 15-minute partial updates, a
-daily full refresh, bounded BUSY waits, and powers the panel controller off
-between updates. Its footer records the UTC time represented by the completed
-UI refresh. On boot the firmware first clears the retained e-paper image, then
-renders a full dashboard after startup sensor and network checks complete. The
-HAT PWR line remains enabled so the controller RAM needed for fast partial
-refreshes is retained.
+dashboard uses a 40-row/4 KB paged framebuffer and refreshes after each
+successful five-minute weather sample, with a 15-minute fallback. At 23:00
+Pacific local time it performs a full white cleaning refresh and suppresses
+dashboard updates until a full dashboard refresh at 05:00. The POSIX timezone
+and both minute-of-day boundaries are configurable in
+`include/giga_board_config.h` and account for daylight saving time. BUSY waits
+are bounded, and the panel controller is powered off between updates. Its
+footer records the UTC time represented by the completed UI refresh. On boot
+the firmware first clears the retained e-paper image, then renders a full
+dashboard after startup sensor and network checks complete. The HAT PWR line
+remains enabled so the controller RAM needed for fast partial refreshes is
+retained.
 
 ### INA228 addressing
 

@@ -95,6 +95,7 @@ bool readWeatherHoldingRegistersWithRetry(uint8_t slaveId, uint16_t startReg, ui
   const char *lastError = nullptr;
 
   for (int attempt = 1; attempt <= READ_RETRIES; attempt++) {
+    kickSystemWatchdog();
     if (readWeatherHoldingRegistersOnce(slaveId, startReg, quantity, values, &lastError)) {
       return true;
     }
@@ -114,6 +115,7 @@ bool readWeatherHoldingRegistersWithRetry(uint8_t slaveId, uint16_t startReg, ui
 
     if (attempt < READ_RETRIES) {
       delay(backoff);
+      kickSystemWatchdog();
       backoff = min(backoff * 2, MAX_BACKOFF_MS);
     }
   }
@@ -163,8 +165,17 @@ void addWeatherSample(const WeatherReading &weather) {
 bool sampleWeatherNow() {
   WeatherReading sample;
   bool readOk = readWeatherNow(sample);
-  lastWeatherReading = sample;
-  if (readOk) addWeatherSample(sample);
+  if (readOk) {
+    lastWeatherReading = sample;
+    addWeatherSample(sample);
+    ++weatherReadingRevision;
+  } else if (!lastWeatherReading.valid) {
+    lastWeatherReading = sample;
+  } else {
+    // Keep the last valid values available while diagnostics expose the
+    // current polling failure.
+    lastWeatherReading.lastError = sample.lastError;
+  }
   return readOk;
 }
 
@@ -175,9 +186,16 @@ void pollWeatherIfDue(bool force) {
   sampleWeatherNow();
 }
 
+bool latestWeatherSampleFresh() {
+  return lastSuccessfulWeatherReadMs != 0 &&
+         millis() - lastSuccessfulWeatherReadMs <= WEATHER_STALE_AFTER_MS;
+}
+
 void resetWeatherSummaryForNextInterval() {
   weatherSummary = WeatherSummary();
-  if (lastWeatherReading.valid) addWeatherSample(lastWeatherReading);
+  if (lastWeatherReading.valid && latestWeatherSampleFresh()) {
+    addWeatherSample(lastWeatherReading);
+  }
 }
 
 bool readWeatherNow(WeatherReading &weather) {
@@ -262,6 +280,7 @@ void readWeatherForReading(ProbeReading &reading) {
   pollWeatherIfDue(false);
   reading.weather = lastWeatherReading;
   reading.weather.summary = weatherSummary;
+  if (!latestWeatherSampleFresh()) reading.weather.valid = false;
 }
 
 void appendFloatOrNull(String &body, float value, uint8_t decimals) {

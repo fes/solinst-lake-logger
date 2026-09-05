@@ -42,9 +42,11 @@ EpaperRefreshDecision decideEpaperRefresh(
   const bool healthChanged = snapshot.health != state.lastHealth;
   const bool readingChanged =
       snapshot.readingRevision != state.lastReadingRevision;
+  const bool weatherChanged =
+      snapshot.weatherRevision != state.lastWeatherRevision;
 
   if (!fullRefreshDue && !regularRefreshDue && !healthChanged &&
-      !readingChanged) {
+      !readingChanged && !weatherChanged) {
     return EpaperRefreshDecision::NONE;
   }
 
@@ -52,7 +54,8 @@ EpaperRefreshDecision decideEpaperRefresh(
     return EpaperRefreshDecision::FULL;
   }
 
-  if (healthChanged || regularRefreshDue || readingChanged) {
+  if (healthChanged || regularRefreshDue || readingChanged ||
+      weatherChanged) {
     return EpaperRefreshDecision::PARTIAL;
   }
   return EpaperRefreshDecision::NONE;
@@ -65,6 +68,7 @@ void recordEpaperRefresh(
   state.initialized = true;
   state.lastRefreshMs = nowMs;
   state.lastReadingRevision = snapshot.readingRevision;
+  state.lastWeatherRevision = snapshot.weatherRevision;
   state.lastHealth = snapshot.health;
   if (decision == EpaperRefreshDecision::FULL) {
     state.lastFullRefreshMs = nowMs;
@@ -83,6 +87,21 @@ EpaperRefreshDecision observeEpaperRefresh(
 bool epaperBusyTimedOut(
     uint32_t nowMs, uint32_t busyStartedMs, uint32_t timeoutMs) {
   return timeoutMs == 0 || nowMs - busyStartedMs >= timeoutMs;
+}
+
+bool minuteInDailyWindow(
+    uint16_t minuteOfDay, uint16_t startMinute, uint16_t endMinute) {
+  constexpr uint16_t MINUTES_PER_DAY = 24U * 60U;
+  if (minuteOfDay >= MINUTES_PER_DAY ||
+      startMinute >= MINUTES_PER_DAY ||
+      endMinute >= MINUTES_PER_DAY ||
+      startMinute == endMinute) {
+    return false;
+  }
+  if (startMinute < endMinute) {
+    return minuteOfDay >= startMinute && minuteOfDay < endMinute;
+  }
+  return minuteOfDay >= startMinute || minuteOfDay < endMinute;
 }
 
 }  // namespace logger_core

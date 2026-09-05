@@ -14,6 +14,7 @@ enum class SiteHealth : uint8_t {
 struct SiteSnapshot {
   uint32_t capturedMs = 0;
   uint32_t readingRevision = 0;
+  uint32_t weatherRevision = 0;
   bool clockValid = false;
   bool wifiConnected = false;
   int32_t wifiRssiDbm = 0;
@@ -67,6 +68,7 @@ struct EpaperRefreshState {
   uint32_t lastRefreshMs = 0;
   uint32_t lastFullRefreshMs = 0;
   uint32_t lastReadingRevision = 0;
+  uint32_t lastWeatherRevision = 0;
   SiteHealth lastHealth = SiteHealth::CRITICAL;
 };
 
@@ -84,5 +86,8 @@ void recordEpaperRefresh(
 
 bool epaperBusyTimedOut(
     uint32_t nowMs, uint32_t busyStartedMs, uint32_t timeoutMs);
+
+bool minuteInDailyWindow(
+    uint16_t minuteOfDay, uint16_t startMinute, uint16_t endMinute);
 
 }  // namespace logger_core

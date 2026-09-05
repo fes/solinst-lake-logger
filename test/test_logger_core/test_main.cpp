@@ -978,6 +978,39 @@ void testEpaperRefreshDecisionCommitsOnlyAfterSuccessfulRender() {
   TEST_ASSERT_EQUAL_UINT32(7, state.lastReadingRevision);
 }
 
+void testEpaperRefreshesForSuccessfulWeatherRevision() {
+  logger_core::SiteSnapshot snapshot;
+  snapshot.health = logger_core::SiteHealth::HEALTHY;
+  snapshot.readingRevision = 7;
+  snapshot.weatherRevision = 1;
+  logger_core::EpaperRefreshState state;
+  logger_core::recordEpaperRefresh(
+      1000, snapshot, logger_core::EpaperRefreshDecision::FULL, state);
+
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(logger_core::EpaperRefreshDecision::NONE),
+      static_cast<int>(logger_core::decideEpaperRefresh(
+          2000, snapshot, 900000, 86400000, state)));
+  snapshot.weatherRevision = 2;
+  TEST_ASSERT_EQUAL_INT(
+      static_cast<int>(logger_core::EpaperRefreshDecision::PARTIAL),
+      static_cast<int>(logger_core::decideEpaperRefresh(
+          2001, snapshot, 900000, 86400000, state)));
+}
+
+void testDailyDisplayWindowSupportsBoundariesAndMidnightWrap() {
+  TEST_ASSERT_TRUE(logger_core::minuteInDailyWindow(300, 300, 1380));
+  TEST_ASSERT_TRUE(logger_core::minuteInDailyWindow(1379, 300, 1380));
+  TEST_ASSERT_FALSE(logger_core::minuteInDailyWindow(1380, 300, 1380));
+  TEST_ASSERT_FALSE(logger_core::minuteInDailyWindow(299, 300, 1380));
+
+  TEST_ASSERT_TRUE(logger_core::minuteInDailyWindow(1380, 1380, 300));
+  TEST_ASSERT_TRUE(logger_core::minuteInDailyWindow(0, 1380, 300));
+  TEST_ASSERT_FALSE(logger_core::minuteInDailyWindow(300, 1380, 300));
+  TEST_ASSERT_FALSE(logger_core::minuteInDailyWindow(100, 100, 100));
+  TEST_ASSERT_FALSE(logger_core::minuteInDailyWindow(1440, 300, 1380));
+}
+
 void testSc16is752CommandsBaudDivisorsAndFraming() {
   TEST_ASSERT_EQUAL_HEX8(
       0x00, logger_core::sc16is752Command(0, 0, false));
@@ -1334,6 +1367,8 @@ int main(int, char**) {
   RUN_TEST(testSiteHealthClassification);
   RUN_TEST(testEpaperRefreshPolicyLifecycleAndRollover);
   RUN_TEST(testEpaperRefreshDecisionCommitsOnlyAfterSuccessfulRender);
+  RUN_TEST(testEpaperRefreshesForSuccessfulWeatherRevision);
+  RUN_TEST(testDailyDisplayWindowSupportsBoundariesAndMidnightWrap);
   RUN_TEST(testSc16is752CommandsBaudDivisorsAndFraming);
   RUN_TEST(testEpaperPolicyRejectsInvalidConfigurationAndBoundsBusyWait);
   RUN_TEST(testRollingExtremaBucketsMergeExpireAndRejectInvalidValues);

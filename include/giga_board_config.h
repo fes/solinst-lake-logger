@@ -21,3 +21,8 @@ constexpr uint32_t GIGA_EPAPER_REFRESH_INTERVAL_MS = 15UL * 60UL * 1000UL;
 constexpr uint32_t GIGA_EPAPER_FULL_REFRESH_INTERVAL_MS =
     24UL * 60UL * 60UL * 1000UL;
 constexpr uint32_t GIGA_EPAPER_BUSY_TIMEOUT_MS = 10UL * 1000UL;
+// POSIX TZ format keeps the display window aligned with Pacific DST.
+constexpr char GIGA_EPAPER_TIMEZONE[] =
+    "PST8PDT,M3.2.0/2,M11.1.0/2";
+constexpr uint16_t GIGA_EPAPER_ACTIVE_START_MINUTE = 5U * 60U;
+constexpr uint16_t GIGA_EPAPER_QUIET_START_MINUTE = 23U * 60U;

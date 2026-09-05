@@ -4,6 +4,7 @@ logger_core::SiteSnapshot currentSiteSnapshot() {
   logger_core::SiteSnapshot snapshot;
   snapshot.capturedMs = millis();
   snapshot.readingRevision = siteReadingRevision;
+  snapshot.weatherRevision = weatherReadingRevision;
   snapshot.clockValid = isClockValid();
   snapshot.wifiConnected = WiFi.status() == WL_CONNECTED;
   snapshot.wifiRssiDbm = snapshot.wifiConnected ? WiFi.RSSI() : 0;
@@ -23,7 +24,8 @@ logger_core::SiteSnapshot currentSiteSnapshot() {
                                  : 0;
   snapshot.weatherEnabled = WEATHER_SENSOR_ENABLED;
   snapshot.weatherPresent = lastWeatherReading.present;
-  snapshot.weatherValid = lastWeatherReading.valid;
+  snapshot.weatherValid =
+      lastWeatherReading.valid && latestWeatherSampleFresh();
   snapshot.airTemperatureC = lastWeatherReading.airTemperatureC;
   snapshot.relativeHumidityPct = lastWeatherReading.relativeHumidityPct;
   snapshot.barometricPressureHpa =

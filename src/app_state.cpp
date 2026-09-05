@@ -49,6 +49,7 @@ String lastWeatherError = "";
 String lastWeatherErrorUtc = "";
 WeatherReading lastWeatherReading;
 WeatherSummary weatherSummary;
+uint32_t weatherReadingRevision = 0;
 
 #if defined(LOGGER_BOARD_OPTA)
 U8G2_SSD1309_128X64_NONAME0_F_HW_I2C display(U8G2_R0, U8X8_PIN_NONE);

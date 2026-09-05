@@ -206,6 +206,7 @@ bool readInputRegistersWithRetry(uint8_t slaveId, uint16_t startReg, uint16_t qu
   const char *lastError = nullptr;
 
   for (int attempt = 1; attempt <= READ_RETRIES; attempt++) {
+    kickSystemWatchdog();
     if (readInputRegistersOnce(slaveId, startReg, quantity, values, &lastError)) {
       return true;
     }
@@ -225,6 +226,7 @@ bool readInputRegistersWithRetry(uint8_t slaveId, uint16_t startReg, uint16_t qu
 
     if (attempt < READ_RETRIES) {
       delay(backoff);
+      kickSystemWatchdog();
       backoff = min(backoff * 2, MAX_BACKOFF_MS);
     }
   }

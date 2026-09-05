@@ -96,14 +96,19 @@ constexpr uint32_t WEATHER_BAUD = WLTS_BAUD;
 // Giga keeps this framing on its independent weather channel.
 constexpr auto WEATHER_SERIAL_CFG = SERIAL_8N1;
 constexpr unsigned long WEATHER_SAMPLE_INTERVAL_MS = 5UL * 60UL * 1000UL;
+constexpr unsigned long WEATHER_STALE_AFTER_MS =
+    3UL * WEATHER_SAMPLE_INTERVAL_MS;
 
 constexpr int READ_RETRIES = 4;
 constexpr unsigned long INITIAL_BACKOFF_MS = 250;
 constexpr unsigned long MAX_BACKOFF_MS     = 4000;
 constexpr int POST_RETRIES = 3;
 constexpr unsigned long POST_RETRY_DELAY_MS = 2000;
+constexpr unsigned long NETWORK_SOCKET_TIMEOUT_MS = 5000UL;
+constexpr unsigned long HTTP_RESPONSE_TIMEOUT_MS = 10000UL;
 constexpr unsigned long UPLOAD_RETRY_COOLDOWN_INITIAL_MS = 30000UL;
 constexpr unsigned long UPLOAD_RETRY_COOLDOWN_MAX_MS = 15UL * 60UL * 1000UL;
+constexpr uint32_t SYSTEM_WATCHDOG_TIMEOUT_MS = 30000UL;
 
 constexpr uint16_t REG_FW_VERSION = 0x0000;
 constexpr uint16_t REG_FW_BETA    = 0x0001;
@@ -270,6 +275,7 @@ extern String lastWeatherError;
 extern String lastWeatherErrorUtc;
 extern WeatherReading lastWeatherReading;
 extern WeatherSummary weatherSummary;
+extern uint32_t weatherReadingRevision;
 
 #if defined(LOGGER_BOARD_OPTA)
 extern U8G2_SSD1309_128X64_NONAME0_F_HW_I2C display;
@@ -342,6 +348,8 @@ void maintainClockSync();
 bool isClockValid();
 String nowUtcString();
 bool shouldLogNow();
+void kickSystemWatchdog();
+const char* lastSystemResetReasonName();
 
 bool initPowerMonitors();
 void pollPowerMonitorsIfDue(bool force = false);
@@ -358,6 +366,7 @@ void initWeatherSensor();
 bool readWeatherNow(WeatherReading &weather);
 void readWeatherForReading(ProbeReading &reading);
 void pollWeatherIfDue(bool force = false);
+bool latestWeatherSampleFresh();
 void resetWeatherSummaryForNextInterval();
 void appendWeatherJson(String &body, const char *prefix, const WeatherReading &weather);
 void beginSolinstRs485();

@@ -1,9 +1,50 @@
 #include <Arduino.h>
+#include <mbed.h>
 
 #include "config.h"
 #include "runtime_boundaries.h"
 
 namespace {
+
+mbed::Watchdog& systemWatchdog = mbed::Watchdog::get_instance();
+reset_reason_t systemResetReason = RESET_REASON_UNKNOWN;
+
+const char* resetReasonName(reset_reason_t reason) {
+  switch (reason) {
+    case RESET_REASON_POWER_ON: return "power_on";
+    case RESET_REASON_PIN_RESET: return "pin_reset";
+    case RESET_REASON_BROWN_OUT: return "brown_out";
+    case RESET_REASON_SOFTWARE: return "software";
+    case RESET_REASON_WATCHDOG: return "watchdog";
+    case RESET_REASON_LOCKUP: return "lockup";
+    case RESET_REASON_WAKE_LOW_POWER: return "wake_low_power";
+    case RESET_REASON_ACCESS_ERROR: return "access_error";
+    case RESET_REASON_BOOT_ERROR: return "boot_error";
+    case RESET_REASON_MULTIPLE: return "multiple";
+    case RESET_REASON_PLATFORM: return "platform";
+    case RESET_REASON_UNKNOWN: return "unknown";
+  }
+  return "unknown";
+}
+
+void configureNetworkTimeouts() {
+  wifiClient.setSocketTimeout(NETWORK_SOCKET_TIMEOUT_MS);
+  wifiSslClient.setSocketTimeout(NETWORK_SOCKET_TIMEOUT_MS);
+  googleAppsScriptHttpClient.setHttpResponseTimeout(
+      HTTP_RESPONSE_TIMEOUT_MS);
+  fesLabsHttpsClient.setHttpResponseTimeout(HTTP_RESPONSE_TIMEOUT_MS);
+  fesLabsHttpClient.setHttpResponseTimeout(HTTP_RESPONSE_TIMEOUT_MS);
+}
+
+void startSystemWatchdog() {
+  const uint32_t timeoutMs =
+      min(SYSTEM_WATCHDOG_TIMEOUT_MS, systemWatchdog.get_max_timeout());
+  if (!systemWatchdog.is_running()) {
+    systemWatchdog.start(timeoutMs);
+  }
+  Serial.print("System watchdog timeout ms: ");
+  Serial.println(systemWatchdog.get_timeout());
+}
 
 void ensureHttpServerStarted() {
   if (!logger_core::shouldStartHttpServer(
@@ -23,6 +64,14 @@ void ensureHttpServerStarted() {
 
 }  // namespace
 
+void kickSystemWatchdog() {
+  if (systemWatchdog.is_running()) systemWatchdog.kick();
+}
+
+const char* lastSystemResetReasonName() {
+  return resetReasonName(systemResetReason);
+}
+
 void setup() {
   Serial.begin(115200);
 #if defined(LOGGER_WAIT_FOR_SERIAL_ON_BOOT)
@@ -32,13 +81,17 @@ void setup() {
   delay(2000);
 #endif
   bootMs = millis();
+  systemResetReason = mbed::ResetReason::get();
 
   Serial.println();
   Serial.print("Starting ");
   Serial.print(ACTIVE_BOARD_PROFILE.name);
   Serial.println(" logger + HTTP API");
+  Serial.print("Last system reset reason: ");
+  Serial.println(lastSystemResetReasonName());
 
   ACTIVE_PLATFORM.begin();
+  configureNetworkTimeouts();
 
   loadRuntimeConfig();
   printRuntimeConfigSummary();
@@ -64,9 +117,11 @@ void setup() {
   }
 
   ensureHttpServerStarted();
+  startSystemWatchdog();
 }
 
 void loop() {
+  kickSystemWatchdog();
   ACTIVE_PLATFORM.handleInput();
   ensureHttpServerStarted();
   handleHttpClient();

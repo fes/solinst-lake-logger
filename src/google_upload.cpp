@@ -132,6 +132,7 @@ HttpClient& uploadHttpClient() {
 UploadResult postJson(const String &payload) {
   HttpClient &httpClient = uploadHttpClient();
   httpClient.stop();
+  kickSystemWatchdog();
 
   httpClient.beginRequest();
   httpClient.post(uploadEndpointPath());
@@ -143,6 +144,8 @@ UploadResult postJson(const String &payload) {
 
   int statusCode = httpClient.responseStatusCode();
   String response = httpClient.responseBody();
+  httpClient.stop();
+  kickSystemWatchdog();
 
   Serial.print("POST status: ");
   Serial.println(statusCode);
@@ -189,6 +192,7 @@ UploadResult postReadingWithRetry(const ProbeReading &r) {
   UploadResult result;
 
   for (int attempt = 1; attempt <= POST_RETRIES; attempt++) {
+    kickSystemWatchdog();
     result = postJson(payload);
     if (result.outcome == UploadOutcome::ACCEPTED) {
       lastSuccessfulUploadUtc = nowUtcString();
@@ -205,6 +209,7 @@ UploadResult postReadingWithRetry(const ProbeReading &r) {
 
     if (attempt < POST_RETRIES) {
       delay(POST_RETRY_DELAY_MS);
+      kickSystemWatchdog();
     }
   }
 

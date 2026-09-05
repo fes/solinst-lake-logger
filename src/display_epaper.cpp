@@ -3,6 +3,7 @@
 #if defined(LOGGER_BOARD_GIGA)
 #include <GxEPD2_BW.h>
 #include <SPI.h>
+#include <stdlib.h>
 
 #include <gdeq0426t82_driver.h>
 #include "giga_board_config.h"
@@ -24,6 +25,8 @@ GxEPD2_BW<Gdeq0426t82Driver, EPAPER_PAGE_HEIGHT> epaper(
 
 logger_core::EpaperRefreshState refreshState;
 bool displayRefreshPending = false;
+bool displayQuietWindowActive = false;
+bool displayIsWhite = false;
 uint32_t nextDisplayAttemptMs = 0;
 uint32_t displayRefreshCountLocal = 0;
 uint32_t displayRecoveryCountLocal = 0;
@@ -199,14 +202,21 @@ void drawDashboard(const logger_core::SiteSnapshot& snapshot,
           ? refreshUtc
           : "clock unavailable");
   printAt(12, 426, 2, line);
-  snprintf(line, sizeof(line), "15m partial | 24h full | /status | %s",
-           uploadEndpointModeName());
+  snprintf(
+      line, sizeof(line),
+      "5m weather | quiet %02u:%02u-%02u:%02u | /status | %s",
+      static_cast<unsigned>(GIGA_EPAPER_QUIET_START_MINUTE / 60U),
+      static_cast<unsigned>(GIGA_EPAPER_QUIET_START_MINUTE % 60U),
+      static_cast<unsigned>(GIGA_EPAPER_ACTIVE_START_MINUTE / 60U),
+      static_cast<unsigned>(GIGA_EPAPER_ACTIVE_START_MINUTE % 60U),
+      uploadEndpointModeName());
   printAt(12, 454, 1, line);
 }
 
 bool waitForDisplayIdle(uint32_t timeoutMs) {
   const uint32_t startedMs = millis();
   while (digitalRead(GIGA_EPAPER_BUSY_PIN) == GIGA_EPAPER_BUSY_LEVEL) {
+    kickSystemWatchdog();
     if (logger_core::epaperBusyTimedOut(
             millis(), startedMs, timeoutMs)) {
       return false;
@@ -216,7 +226,7 @@ bool waitForDisplayIdle(uint32_t timeoutMs) {
   return true;
 }
 
-bool clearDisplayForBoot() {
+bool clearDisplayWhite(const char* successMessage) {
   if (!waitForDisplayIdle(GIGA_EPAPER_BUSY_TIMEOUT_MS)) {
     Serial.println("E-paper BUSY timeout before boot clear");
     return false;
@@ -235,8 +245,35 @@ bool clearDisplayForBoot() {
   }
   epaper.powerOff();
   displayAwake = false;
-  Serial.println("E-paper cleared for boot");
+  displayIsWhite = true;
+  Serial.println(successMessage);
   return true;
+}
+
+bool clearDisplayForNight() {
+  powerCycleDisplayController();
+  initializeDisplayDriver(false);
+  return clearDisplayWhite("E-paper cleared for nightly quiet window");
+}
+
+bool displayActiveNow() {
+  if (!isClockValid()) return true;
+
+  static bool timezoneConfigured = false;
+  if (!timezoneConfigured) {
+    setenv("TZ", GIGA_EPAPER_TIMEZONE, 1);
+    tzset();
+    timezoneConfigured = true;
+  }
+
+  const time_t now = time(nullptr);
+  struct tm localTime;
+  if (localtime_r(&now, &localTime) == nullptr) return true;
+  const uint16_t minuteOfDay =
+      static_cast<uint16_t>(localTime.tm_hour * 60 + localTime.tm_min);
+  return logger_core::minuteInDailyWindow(
+      minuteOfDay, GIGA_EPAPER_ACTIVE_START_MINUTE,
+      GIGA_EPAPER_QUIET_START_MINUTE);
 }
 
 bool renderSnapshot(
@@ -272,6 +309,7 @@ bool renderSnapshot(
   }
   epaper.powerOff();
   displayAwake = false;
+  displayIsWhite = false;
   return true;
 }
 
@@ -285,7 +323,7 @@ bool initDisplay() {
 
   powerCycleDisplayController();
   initializeDisplayDriver(true);
-  if (!clearDisplayForBoot()) {
+  if (!clearDisplayWhite("E-paper cleared for boot")) {
     displayPresent = false;
     return false;
   }
@@ -314,11 +352,32 @@ void updateDisplay() {
     ++displayRecoveryCountLocal;
   }
 
+  const bool activeNow = displayActiveNow();
+  if (!activeNow) {
+    displayRefreshPending = false;
+    if (!displayQuietWindowActive) {
+      if (!displayIsWhite && !clearDisplayForNight()) {
+        displayPresent = false;
+        nextDisplayAttemptMs = nowMs + DISPLAY_RETRY_INTERVAL_MS;
+        return;
+      }
+      displayQuietWindowActive = true;
+      lastDisplayRefreshMs = nowMs;
+      lastDisplayRefreshUtcValue = nowUtcString();
+      ++displayRefreshCountLocal;
+    }
+    return;
+  }
+
   logger_core::SiteSnapshot snapshot = currentSiteSnapshot();
   logger_core::EpaperRefreshDecision decision =
       logger_core::decideEpaperRefresh(
           nowMs, snapshot, GIGA_EPAPER_REFRESH_INTERVAL_MS,
           GIGA_EPAPER_FULL_REFRESH_INTERVAL_MS, refreshState);
+  if (displayQuietWindowActive) {
+    displayQuietWindowActive = false;
+    decision = logger_core::EpaperRefreshDecision::FULL;
+  }
   if (displayRefreshPending &&
       decision == logger_core::EpaperRefreshDecision::NONE) {
     decision = logger_core::EpaperRefreshDecision::PARTIAL;
