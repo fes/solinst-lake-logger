@@ -107,8 +107,10 @@ validated 25 C waveform. Standard GxEPD2 black/white polarity is used. The
 dashboard uses a 40-row/4 KB paged framebuffer, 15-minute partial updates, a
 daily full refresh, bounded BUSY waits, and powers the panel controller off
 between updates. Its footer records the UTC time represented by the completed
-UI refresh. The HAT PWR line remains enabled so the controller RAM needed for
-fast partial refreshes is retained.
+UI refresh. On boot the firmware first clears the retained e-paper image, then
+renders a full dashboard after startup sensor and network checks complete. The
+HAT PWR line remains enabled so the controller RAM needed for fast partial
+refreshes is retained.
 
 ### INA228 addressing
 

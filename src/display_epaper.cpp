@@ -59,6 +59,27 @@ void printRightAligned(
   printAt(right - width, y, size, text);
 }
 
+void powerCycleDisplayController() {
+  pinMode(GIGA_EPAPER_POWER_PIN, OUTPUT);
+  digitalWrite(
+      GIGA_EPAPER_POWER_PIN,
+      GIGA_EPAPER_POWER_ENABLE_LEVEL == HIGH ? LOW : HIGH);
+  delay(100);
+  digitalWrite(
+      GIGA_EPAPER_POWER_PIN, GIGA_EPAPER_POWER_ENABLE_LEVEL);
+  delay(100);
+}
+
+void initializeDisplayDriver(bool initial) {
+  pinMode(GIGA_EPAPER_BUSY_PIN, INPUT);
+  epaper.epd2.selectSPI(
+      SPI1, SPISettings(4000000, MSBFIRST, SPI_MODE0));
+  epaper.init(115200, initial, 10, false);
+  pinMode(GIGA_EPAPER_BUSY_PIN, INPUT_PULLDOWN);
+  epaper.setRotation(0);
+  epaper.setTextWrap(false);
+}
+
 void drawWidget(int16_t x, int16_t y, int16_t width, int16_t height,
                 const char* title) {
   epaper.drawRoundRect(x, y, width, height, 10, EPAPER_BLACK);
@@ -195,10 +216,39 @@ bool waitForDisplayIdle(uint32_t timeoutMs) {
   return true;
 }
 
+bool clearDisplayForBoot() {
+  if (!waitForDisplayIdle(GIGA_EPAPER_BUSY_TIMEOUT_MS)) {
+    Serial.println("E-paper BUSY timeout before boot clear");
+    return false;
+  }
+
+  displayAwake = true;
+  epaper.setFullWindow();
+  epaper.firstPage();
+  do {
+    epaper.fillScreen(EPAPER_WHITE);
+  } while (epaper.nextPage());
+  if (!waitForDisplayIdle(GIGA_EPAPER_BUSY_TIMEOUT_MS)) {
+    Serial.println("E-paper BUSY timeout after boot clear");
+    displayAwake = false;
+    return false;
+  }
+  epaper.powerOff();
+  displayAwake = false;
+  Serial.println("E-paper cleared for boot");
+  return true;
+}
+
 bool renderSnapshot(
     const logger_core::SiteSnapshot& snapshot,
     logger_core::EpaperRefreshDecision decision,
     const char* refreshUtc) {
+  if (decision == logger_core::EpaperRefreshDecision::FULL) {
+    // Long sensor and network operations can leave the powered controller in
+    // stale state. Reinitialize it before every infrequent full refresh.
+    powerCycleDisplayController();
+    initializeDisplayDriver(false);
+  }
   if (!waitForDisplayIdle(GIGA_EPAPER_BUSY_TIMEOUT_MS)) {
     Serial.println("E-paper BUSY timeout before refresh");
     return false;
@@ -233,23 +283,13 @@ bool initDisplay() {
     return false;
   }
 
-  pinMode(GIGA_EPAPER_POWER_PIN, OUTPUT);
-  digitalWrite(
-      GIGA_EPAPER_POWER_PIN,
-      GIGA_EPAPER_POWER_ENABLE_LEVEL == HIGH ? LOW : HIGH);
-  delay(100);
-  digitalWrite(
-      GIGA_EPAPER_POWER_PIN, GIGA_EPAPER_POWER_ENABLE_LEVEL);
-  delay(100);
-  pinMode(GIGA_EPAPER_BUSY_PIN, INPUT);
-  epaper.epd2.selectSPI(
-      SPI1, SPISettings(4000000, MSBFIRST, SPI_MODE0));
-  epaper.init(115200, true, 10, false);
-  pinMode(GIGA_EPAPER_BUSY_PIN, INPUT_PULLDOWN);
-  epaper.setRotation(0);
-  epaper.setTextWrap(false);
+  powerCycleDisplayController();
+  initializeDisplayDriver(true);
+  if (!clearDisplayForBoot()) {
+    displayPresent = false;
+    return false;
+  }
   displayPresent = true;
-  displayAwake = false;
   displayRefreshPending = true;
   refreshState = logger_core::EpaperRefreshState();
   Serial.println(
@@ -298,6 +338,14 @@ void updateDisplay() {
   lastDisplayRefreshMs = nowMs;
   lastDisplayRefreshUtcValue = refreshUtc;
   ++displayRefreshCountLocal;
+  Serial.print("E-paper dashboard refreshed: ");
+  Serial.print(
+      decision == logger_core::EpaperRefreshDecision::FULL
+          ? "full"
+          : "partial");
+  Serial.print(" UTC=");
+  Serial.println(
+      refreshUtc.length() > 0 ? refreshUtc : String("clock unavailable"));
 }
 
 void sleepDisplay() {
