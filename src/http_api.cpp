@@ -51,14 +51,13 @@ bool writeHttpBytes(
     WiFiClient& client, const uint8_t* data, size_t length) {
   const unsigned long startedMs = millis();
   size_t offset = 0;
-  while (offset < length && millis() - startedMs < 3000UL) {
+  while (offset < length && millis() - startedMs < 5000UL) {
     const size_t chunk =
         min(static_cast<size_t>(512), length - offset);
     const size_t written = client.write(data + offset, chunk);
     if (written > 0) {
       offset += written;
     } else {
-      if (!client.connected()) break;
       delay(1);
     }
   }
