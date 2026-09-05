@@ -300,16 +300,29 @@ bool renderSnapshot(
   }
 
   displayAwake = true;
+  const uint32_t refreshStartedMs = millis();
   epaper.firstPage();
   do {
     drawDashboard(snapshot, refreshUtc);
   } while (epaper.nextPage());
-  if (digitalRead(GIGA_EPAPER_BUSY_PIN) == GIGA_EPAPER_BUSY_LEVEL) {
+  const bool refreshTimedOut =
+      digitalRead(GIGA_EPAPER_BUSY_PIN) == GIGA_EPAPER_BUSY_LEVEL &&
+      millis() - refreshStartedMs >= GIGA_EPAPER_BUSY_TIMEOUT_MS;
+  if (refreshTimedOut) {
     Serial.println("E-paper BUSY timeout after refresh");
     displayAwake = false;
     return false;
   }
+
+  // Partial paging writes the previous-image plane after the visible update.
+  // The controller can briefly reassert BUSY there; power-off completes that
+  // sequence, as exercised by the HIL refresh path.
   epaper.powerOff();
+  if (digitalRead(GIGA_EPAPER_BUSY_PIN) == GIGA_EPAPER_BUSY_LEVEL) {
+    Serial.println("E-paper BUSY timeout during power-off");
+    displayAwake = false;
+    return false;
+  }
   displayAwake = false;
   displayIsWhite = false;
   return true;
