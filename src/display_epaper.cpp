@@ -319,9 +319,11 @@ bool renderSnapshot(
   // sequence, as exercised by the HIL refresh path.
   epaper.powerOff();
   if (digitalRead(GIGA_EPAPER_BUSY_PIN) == GIGA_EPAPER_BUSY_LEVEL) {
-    Serial.println("E-paper BUSY timeout during power-off");
-    displayAwake = false;
-    return false;
+    Serial.println(
+        "E-paper power-off BUSY timeout; resetting controller");
+    powerCycleDisplayController();
+    initializeDisplayDriver(true);
+    ++displayRecoveryCountLocal;
   }
   displayAwake = false;
   displayIsWhite = false;

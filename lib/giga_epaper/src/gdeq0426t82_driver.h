@@ -4,6 +4,8 @@
 
 class Gdeq0426t82Driver : public GxEPD2_426_GDEQ0426T82 {
  public:
+  static constexpr uint16_t POWER_OFF_TIMEOUT_MS = 750;
+
   using GxEPD2_426_GDEQ0426T82::GxEPD2_426_GDEQ0426T82;
   using GxEPD2_426_GDEQ0426T82::init;
   using GxEPD2_426_GDEQ0426T82::refresh;
@@ -41,5 +43,20 @@ class Gdeq0426t82Driver : public GxEPD2_426_GDEQ0426T82 {
     _waitWhileBusy("Gdeq0426t82Driver display", 5000);
     _initial_refresh = false;
     _power_is_on = false;
+  }
+
+  void powerOff() override {
+    if (_power_is_on) {
+      _writeCommand(0x22);
+      _writeData(0x83);
+      _writeCommand(0x20);
+      const uint32_t startedMs = millis();
+      while (digitalRead(_busy) == _busy_level &&
+             millis() - startedMs < POWER_OFF_TIMEOUT_MS) {
+        delay(1);
+      }
+    }
+    _power_is_on = false;
+    _using_partial_mode = false;
   }
 };
