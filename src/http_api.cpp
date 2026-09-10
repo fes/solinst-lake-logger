@@ -206,6 +206,17 @@ String statusJson() {
   body += "\"last_ntp_attempt_age\":\"" + jsonEscape(ntpSyncState.attempted ? millisAgeString(ntpSyncState.lastAttemptMs) : String("never")) + "\",";
   body += "\"ntp_cooldown_remaining_ms\":" + String(ntpCooldownRemainingMs) + ",";
   body += "\"consecutive_ntp_failures\":" + String(ntpSyncState.consecutiveFailures) + ",";
+  body += "\"ntp_sync_delta_seconds\":" +
+          (ntpSkewStats.hasSample
+               ? String(static_cast<long>(ntpSkewStats.lastDeltaSeconds))
+               : String("null")) +
+          ",";
+  body += "\"ntp_largest_observed_skew_seconds\":" +
+          (ntpSkewStats.hasSample
+               ? String(static_cast<long>(ntpSkewStats.largestAbsSkewSeconds))
+               : String("null")) +
+          ",";
+  body += "\"ntp_skew_sample_count\":" + String(ntpSkewStats.sampleCount) + ",";
   body += "\"upload_endpoint_mode\":\"" + jsonEscape(String(uploadEndpointModeName())) + "\",";
   body += "\"upload_endpoint_host\":\"" + jsonEscape(String(uploadEndpointHost())) + "\",";
   body += "\"upload_endpoint_path\":\"" + jsonEscape(String(uploadEndpointPath())) + "\",";

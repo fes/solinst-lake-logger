@@ -421,6 +421,41 @@ void testNtpPolicyBoundedBackoffAndMillisRollover() {
   TEST_ASSERT_TRUE(logger_core::ntpSyncDue(0x0000188CU, state));
 }
 
+void testNtpSkewSampleTracksDeltaAndDirectionAndIgnoresFirstAcquisition() {
+  logger_core::NtpSkewStats stats;
+
+  // The very first sync after boot corrects an invalid/default clock; this
+  // is an acquisition, not drift, and must not be recorded as a bogus
+  // multi-decade "skew".
+  logger_core::recordNtpSkewSample(stats, /*previousClockValid=*/false,
+                                   /*previousEpochSeconds=*/0,
+                                   /*newEpochSeconds=*/1700000000LL);
+  TEST_ASSERT_FALSE(stats.hasSample);
+  TEST_ASSERT_EQUAL_UINT32(0, stats.sampleCount);
+
+  // A small forward correction (RTC running slow).
+  logger_core::recordNtpSkewSample(stats, true, 1700000000LL, 1700000042LL);
+  TEST_ASSERT_TRUE(stats.hasSample);
+  TEST_ASSERT_EQUAL_INT64(42, stats.lastDeltaSeconds);
+  TEST_ASSERT_EQUAL_INT64(42, stats.largestAbsSkewSeconds);
+  TEST_ASSERT_EQUAL_UINT32(1, stats.sampleCount);
+
+  // A large backward correction (RTC running fast) -- this is the scenario
+  // that previously wedged the upload scheduler for hours. Magnitude
+  // should be tracked regardless of direction.
+  logger_core::recordNtpSkewSample(stats, true, 1700018000LL, 1700000000LL);
+  TEST_ASSERT_EQUAL_INT64(-18000, stats.lastDeltaSeconds);
+  TEST_ASSERT_EQUAL_INT64(18000, stats.largestAbsSkewSeconds);
+  TEST_ASSERT_EQUAL_UINT32(2, stats.sampleCount);
+
+  // A subsequent smaller correction updates lastDeltaSeconds but must not
+  // shrink the running largest-observed-skew high-water mark.
+  logger_core::recordNtpSkewSample(stats, true, 1700100000LL, 1700100005LL);
+  TEST_ASSERT_EQUAL_INT64(5, stats.lastDeltaSeconds);
+  TEST_ASSERT_EQUAL_INT64(18000, stats.largestAbsSkewSeconds);
+  TEST_ASSERT_EQUAL_UINT32(3, stats.sampleCount);
+}
+
 void testSensorDiscoveryPolicyTable() {
   struct Case {
     const char* name;
@@ -1383,6 +1418,7 @@ int main(int, char**) {
   RUN_TEST(testNtpPolicyFirstAttemptAndSuccessInterval);
   RUN_TEST(testNtpPolicyFailureRetryForValidAndInvalidClocks);
   RUN_TEST(testNtpPolicyBoundedBackoffAndMillisRollover);
+  RUN_TEST(testNtpSkewSampleTracksDeltaAndDirectionAndIgnoresFirstAcquisition);
   RUN_TEST(testSensorDiscoveryPolicyTable);
   RUN_TEST(testHttpServerStartTransitionPolicy);
   RUN_TEST(testUploadStatusClassificationTable);

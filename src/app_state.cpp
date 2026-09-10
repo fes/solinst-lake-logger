@@ -74,6 +74,7 @@ bool clockValid = false;
 unsigned long bootMs = 0;
 unsigned long lastNtpSyncMs = 0;
 logger_core::NtpSyncState ntpSyncState;
+logger_core::NtpSkewStats ntpSkewStats;
 unsigned long lastSuccessfulProbeReadMs = 0;
 unsigned long lastSuccessfulUploadMs = 0;
 unsigned long lastProbeAttemptMs = 0;

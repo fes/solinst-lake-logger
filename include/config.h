@@ -301,6 +301,7 @@ extern bool clockValid;
 extern unsigned long bootMs;
 extern unsigned long lastNtpSyncMs;
 extern logger_core::NtpSyncState ntpSyncState;
+extern logger_core::NtpSkewStats ntpSkewStats;
 extern unsigned long lastSuccessfulProbeReadMs;
 extern unsigned long lastSuccessfulUploadMs;
 extern unsigned long lastProbeAttemptMs;

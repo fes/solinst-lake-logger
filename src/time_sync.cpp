@@ -62,6 +62,8 @@ bool syncClockFromNtp() {
   }
 
   unsigned long epoch = timeClient.getEpochTime();
+  const bool previousClockValid = isClockValid();
+  const int64_t previousEpoch = static_cast<int64_t>(time(NULL));
   set_time(epoch);
   lastNtpSyncMs = millis();
 
@@ -71,9 +73,18 @@ bool syncClockFromNtp() {
       NTP_RESYNC_INTERVAL_MS, NTP_INVALID_CLOCK_RETRY_INITIAL_MS,
       NTP_INVALID_CLOCK_RETRY_MAX_MS, NTP_VALID_CLOCK_RETRY_INITIAL_MS,
       NTP_VALID_CLOCK_RETRY_MAX_MS);
+  logger_core::recordNtpSkewSample(ntpSkewStats, previousClockValid,
+                                   previousEpoch,
+                                   static_cast<int64_t>(epoch));
 
   Serial.print("Clock synced from NTP: ");
   Serial.println(epochToIso8601UTC(epoch));
+  if (ntpSkewStats.hasSample) {
+    Serial.print("NTP sync delta (s): ");
+    Serial.print(static_cast<long>(ntpSkewStats.lastDeltaSeconds));
+    Serial.print(", largest observed skew (s): ");
+    Serial.println(static_cast<long>(ntpSkewStats.largestAbsSkewSeconds));
+  }
   Serial.print("Clock valid: ");
   Serial.println(clockValid ? "true" : "false");
 

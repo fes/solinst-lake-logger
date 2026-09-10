@@ -153,6 +153,30 @@ uint32_t ntpCooldownRemaining(uint32_t nowMs, const NtpSyncState& state) {
   return retryCooldownRemaining(nowMs, state);
 }
 
+void recordNtpSkewSample(NtpSkewStats& stats, bool previousClockValid,
+                         int64_t previousEpochSeconds,
+                         int64_t newEpochSeconds) {
+  // Only record a delta when the previous clock reading was itself valid --
+  // the very first sync after boot (from an unset/default clock) is an
+  // acquisition, not a drift correction, and would otherwise dominate the
+  // stats with a meaningless multi-decade "skew".
+  if (!previousClockValid) {
+    return;
+  }
+
+  const int64_t delta = newEpochSeconds - previousEpochSeconds;
+  const int64_t absDelta = delta < 0 ? -delta : delta;
+
+  stats.hasSample = true;
+  stats.lastDeltaSeconds = delta;
+  if (absDelta > stats.largestAbsSkewSeconds) {
+    stats.largestAbsSkewSeconds = absDelta;
+  }
+  if (stats.sampleCount != UINT32_MAX) {
+    ++stats.sampleCount;
+  }
+}
+
 bool sensorDiscoveryDue(uint32_t nowMs, bool sensorKnown,
                         const SensorDiscoveryState& state) {
   return !sensorKnown && retryDue(nowMs, state);

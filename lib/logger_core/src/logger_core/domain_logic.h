@@ -52,6 +52,13 @@ struct LogScheduleState {
   uint32_t catchUpCount = 0;
 };
 
+struct NtpSkewStats {
+  bool hasSample = false;
+  int64_t lastDeltaSeconds = 0;
+  int64_t largestAbsSkewSeconds = 0;
+  uint32_t sampleCount = 0;
+};
+
 struct RetryScheduleState {
   bool attempted = false;
   bool lastAttemptSucceeded = false;
@@ -145,6 +152,9 @@ void recordNtpSyncResult(NtpSyncState& state, uint32_t nowMs, bool succeeded,
                          uint32_t validClockRetryInitialMs,
                          uint32_t validClockRetryMaximumMs);
 uint32_t ntpCooldownRemaining(uint32_t nowMs, const NtpSyncState& state);
+void recordNtpSkewSample(NtpSkewStats& stats, bool previousClockValid,
+                         int64_t previousEpochSeconds,
+                         int64_t newEpochSeconds);
 
 bool sensorDiscoveryDue(uint32_t nowMs, bool sensorKnown,
                         const SensorDiscoveryState& state);
