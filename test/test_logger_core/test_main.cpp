@@ -800,18 +800,54 @@ void testUtcScheduleForwardJumpProducesSingleCurrentCatchUp() {
 }
 
 void testUtcScheduleBackwardCorrectionAndRecovery() {
+  // A backward clock correction (e.g. an NTP resync fixing a fast RTC) must
+  // be treated as a fresh reference point rather than silently wedging the
+  // scheduler until real time catches back up to the stale interval key.
   logger_core::LogScheduleState state;
   assertLogDecision(logger_core::LogScheduleDecision::NOT_DUE, true, 10830, 60,
                     5, state);
   assertLogDecision(logger_core::LogScheduleDecision::BOUNDARY, true, 14402, 60,
                     5, state);
+  TEST_ASSERT_EQUAL_INT64(4, state.latestIntervalKey);
+
+  // Clock jumps backward by roughly two intervals. The scheduler should
+  // immediately re-anchor to the corrected time instead of waiting for real
+  // time to pass the old (now-invalid) key again.
   assertLogDecision(logger_core::LogScheduleDecision::NOT_DUE, true, 7210, 60,
                     5, state);
-  assertLogDecision(logger_core::LogScheduleDecision::NOT_DUE, true, 14403, 60,
-                    5, state);
-  assertLogDecision(logger_core::LogScheduleDecision::CATCH_UP, true, 18020, 60,
-                    5, state);
-  TEST_ASSERT_EQUAL_INT64(5, state.latestIntervalKey);
+  TEST_ASSERT_EQUAL_INT64(2, state.latestIntervalKey);
+
+  // Normal cadence resumes right away from the corrected time, with no
+  // multi-hour stall and no spurious CATCH_UP for time that was already
+  // logged before the correction.
+  assertLogDecision(logger_core::LogScheduleDecision::BOUNDARY, true, 10802,
+                    60, 5, state);
+  TEST_ASSERT_EQUAL_INT64(3, state.latestIntervalKey);
+}
+
+void testUtcScheduleLargeBackwardJumpDoesNotWedgeSchedule() {
+  // Regression test: previously, a large backward correction (e.g. several
+  // hours, as caused by an NTP resync correcting a badly drifted RTC) would
+  // permanently block logging until real time drifted back up past the
+  // stale latestIntervalKey -- appearing as a "silently dead" logger with
+  // no errors recorded, for as long as the correction magnitude. The fix
+  // re-anchors on any backward jump instead of waiting it out.
+  logger_core::LogScheduleState state;
+  assertLogDecision(logger_core::LogScheduleDecision::BOUNDARY, true, 720000,
+                    60, 5, state);
+  TEST_ASSERT_EQUAL_INT64(200, state.latestIntervalKey);
+
+  // Clock corrects backward by five hours (18000s). Under the old
+  // behavior this would return NOT_DUE forever until utcEpochSeconds grew
+  // past 720000 again -- five real hours of dead logging. It must instead
+  // resume immediately.
+  assertLogDecision(logger_core::LogScheduleDecision::BOUNDARY, true, 702003,
+                    60, 5, state);
+  TEST_ASSERT_EQUAL_INT64(195, state.latestIntervalKey);
+
+  assertLogDecision(logger_core::LogScheduleDecision::BOUNDARY, true, 705603,
+                    60, 5, state);
+  TEST_ASSERT_EQUAL_INT64(196, state.latestIntervalKey);
 }
 
 void testUtcScheduleDayAndYearRollover() {
@@ -1360,6 +1396,7 @@ int main(int, char**) {
   RUN_TEST(testUtcScheduleDelayedCrossingCatchesUpOnce);
   RUN_TEST(testUtcScheduleForwardJumpProducesSingleCurrentCatchUp);
   RUN_TEST(testUtcScheduleBackwardCorrectionAndRecovery);
+  RUN_TEST(testUtcScheduleLargeBackwardJumpDoesNotWedgeSchedule);
   RUN_TEST(testUtcScheduleDayAndYearRollover);
   RUN_TEST(testUtcScheduleInvalidClockAndConfigurationDoNotMutateState);
   RUN_TEST(testUtcScheduleNonDivisorIntervalUsesEpochIdentity);

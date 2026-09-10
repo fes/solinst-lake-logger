@@ -348,14 +348,24 @@ LogScheduleDecision observeUtcLogSchedule(
   const bool withinBoundaryWindow =
       secondsIntoInterval < boundaryWindowSeconds;
 
-  if (!state.initialized) {
+  if (!state.initialized || intervalKey < state.latestIntervalKey) {
+    // Treat an uninitialized state the same as a backward clock jump (e.g.
+    // an NTP resync correcting a fast/drifted RTC, or a bad initial clock
+    // read). Without this, a backward jump would leave latestIntervalKey
+    // referencing a point in time that hasn't happened "again" yet, and
+    // every subsequent call would see intervalKey <= latestIntervalKey and
+    // return NOT_DUE -- silently halting all future logging/uploads until
+    // real time drifted back up to the stale key, which can take hours
+    // depending on the size of the correction, with no error ever
+    // reported. Instead, accept the corrected time as ground truth and
+    // resume normal cadence immediately.
     state.initialized = true;
     state.latestIntervalKey = intervalKey;
     return withinBoundaryWindow ? LogScheduleDecision::BOUNDARY
                                 : LogScheduleDecision::NOT_DUE;
   }
 
-  if (intervalKey <= state.latestIntervalKey) {
+  if (intervalKey == state.latestIntervalKey) {
     return LogScheduleDecision::NOT_DUE;
   }
 
