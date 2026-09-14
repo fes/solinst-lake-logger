@@ -127,7 +127,9 @@ size_t readRawResponseUntilCandidate(Rs485Channel &channel,
 }
 
 bool readInputRegistersOnce(uint8_t slaveId, uint16_t startReg, uint16_t quantity,
-                            uint16_t *values, const char **errorOut) {
+                            uint16_t *values, const char **errorOut,
+                            size_t *responseLengthOut) {
+  if (responseLengthOut) *responseLengthOut = 0;
   if (quantity == 0 || quantity > 16) {
     if (errorOut) *errorOut = "unsupported quantity";
     return false;
@@ -163,6 +165,7 @@ bool readInputRegistersOnce(uint8_t slaveId, uint16_t startReg, uint16_t quantit
     expectedByteCount,
     responseOffset
   );
+  if (responseLengthOut) *responseLengthOut = responseLength;
 
   if (responseOffset < 0) {
     if (errorOut) {
@@ -204,10 +207,12 @@ bool readInputRegistersOnce(uint8_t slaveId, uint16_t startReg, uint16_t quantit
 bool readInputRegistersWithRetry(uint8_t slaveId, uint16_t startReg, uint16_t quantity, uint16_t *values) {
   unsigned long backoff = INITIAL_BACKOFF_MS;
   const char *lastError = nullptr;
+  size_t lastResponseLength = 0;
 
   for (int attempt = 1; attempt <= READ_RETRIES; attempt++) {
     kickSystemWatchdog();
-    if (readInputRegistersOnce(slaveId, startReg, quantity, values, &lastError)) {
+    if (readInputRegistersOnce(slaveId, startReg, quantity, values, &lastError,
+                               &lastResponseLength)) {
       return true;
     }
 
@@ -231,6 +236,8 @@ bool readInputRegistersWithRetry(uint8_t slaveId, uint16_t startReg, uint16_t qu
     }
   }
 
+  recordModbusFailure("solinst", slaveId, 0x04, startReg, quantity,
+                      lastError, lastResponseLength);
   return false;
 }
 

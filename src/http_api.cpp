@@ -222,6 +222,30 @@ String statusJson() {
   body += "\"upload_endpoint_path\":\"" + jsonEscape(String(uploadEndpointPath())) + "\",";
   body += "\"upload_endpoint_port\":" + String(uploadEndpointPort()) + ",";
   body += "\"upload_endpoint_https\":" + String(uploadEndpointUsesHttps() ? "true" : "false") + ",";
+  body += "\"modbus_failure_total\":" +
+          String(modbusFailureHistoryState.totalCount) + ",";
+  body += "\"modbus_failure_history\":[";
+  for (size_t offset = 0; offset < modbusFailureHistoryState.count; ++offset) {
+    const size_t index = logger_core::diagnosticHistoryIndex(
+        modbusFailureHistoryState, MODBUS_FAILURE_HISTORY_CAPACITY, offset);
+    if (index == SIZE_MAX) break;
+    if (offset > 0) body += ",";
+    const ModbusFailureDiagnostic& diagnostic = modbusFailureHistory[index];
+    body += "{";
+    body += "\"timestamp_utc\":\"" +
+            jsonEscape(String(diagnostic.timestampUtc)) + "\",";
+    body += "\"channel\":\"" +
+            jsonEscape(String(diagnostic.channel)) + "\",";
+    body += "\"slave_id\":" + String(diagnostic.slaveId) + ",";
+    body += "\"function_code\":" + String(diagnostic.functionCode) + ",";
+    body += "\"start_register\":" + String(diagnostic.startRegister) + ",";
+    body += "\"quantity\":" + String(diagnostic.quantity) + ",";
+    body += "\"response_length\":" + String(diagnostic.responseLength) + ",";
+    body += "\"reason\":\"" +
+            jsonEscape(String(diagnostic.reason)) + "\"";
+    body += "}";
+  }
+  body += "],";
   body += "\"sensor_found\":" + String(detectedSensorId != 0 ? "true" : "false") + ",";
   body += "\"modbus_id\":" + String(detectedSensorId) + ",";
   body += "\"configured_fixed_modbus_id_enabled\":" + String(WLTS_USE_FIXED_MODBUS_ID ? "true" : "false") + ",";

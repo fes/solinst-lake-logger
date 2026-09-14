@@ -177,6 +177,28 @@ void recordNtpSkewSample(NtpSkewStats& stats, bool previousClockValid,
   }
 }
 
+size_t reserveDiagnosticHistoryEntry(DiagnosticHistoryState& state,
+                                     size_t capacity) {
+  if (capacity == 0) return SIZE_MAX;
+
+  const size_t index = state.nextIndex % capacity;
+  state.nextIndex = (index + 1) % capacity;
+  if (state.count < capacity) ++state.count;
+  if (state.totalCount != UINT32_MAX) ++state.totalCount;
+  return index;
+}
+
+size_t diagnosticHistoryIndex(const DiagnosticHistoryState& state,
+                              size_t capacity, size_t chronologicalOffset) {
+  if (capacity == 0 || state.count > capacity ||
+      chronologicalOffset >= state.count) {
+    return SIZE_MAX;
+  }
+  const size_t oldest =
+      (state.nextIndex + capacity - state.count) % capacity;
+  return (oldest + chronologicalOffset) % capacity;
+}
+
 bool sensorDiscoveryDue(uint32_t nowMs, bool sensorKnown,
                         const SensorDiscoveryState& state) {
   return !sensorKnown && retryDue(nowMs, state);

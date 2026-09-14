@@ -59,6 +59,12 @@ struct NtpSkewStats {
   uint32_t sampleCount = 0;
 };
 
+struct DiagnosticHistoryState {
+  size_t count = 0;
+  size_t nextIndex = 0;
+  uint32_t totalCount = 0;
+};
+
 struct RetryScheduleState {
   bool attempted = false;
   bool lastAttemptSucceeded = false;
@@ -155,6 +161,10 @@ uint32_t ntpCooldownRemaining(uint32_t nowMs, const NtpSyncState& state);
 void recordNtpSkewSample(NtpSkewStats& stats, bool previousClockValid,
                          int64_t previousEpochSeconds,
                          int64_t newEpochSeconds);
+size_t reserveDiagnosticHistoryEntry(DiagnosticHistoryState& state,
+                                     size_t capacity);
+size_t diagnosticHistoryIndex(const DiagnosticHistoryState& state,
+                              size_t capacity, size_t chronologicalOffset);
 
 bool sensorDiscoveryDue(uint32_t nowMs, bool sensorKnown,
                         const SensorDiscoveryState& state);

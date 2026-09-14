@@ -737,6 +737,9 @@ The Opta exposes these endpoints over its local web server:
 - clock validity and sync age
 - selected upload endpoint mode, host, path, port, and HTTPS setting
 - Solinst sensor identity
+- total terminal Modbus failure count and the last eight failures in
+  chronological order, including UTC time, channel, slave ID, function code,
+  register, quantity, response length, and final error after retries
 - last successful probe/upload timestamps
 - cached upload error string and timestamp
 - upload cooldown remaining
@@ -761,6 +764,8 @@ with `live_` contain the latest periodically refreshed manager snapshot, not
 request-time I2C reads. `cached_probe_*` remains the power snapshot attached to
 the last successful lake reading. A successful live or scheduled probe
 force-refreshes manager power before copying it into that reading.
+The bounded `modbus_failure_history` is retained in RAM and therefore resets
+when the logger reboots.
 
 ### Notes on `/probe`
 

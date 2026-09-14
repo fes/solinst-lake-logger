@@ -926,6 +926,44 @@ void testUtcScheduleNonDivisorIntervalUsesEpochIdentity() {
                     5, state);
 }
 
+void testDiagnosticHistoryRetainsNewestEntriesInChronologicalOrder() {
+  logger_core::DiagnosticHistoryState state;
+  constexpr size_t capacity = 3;
+  size_t values[capacity] = {0, 0, 0};
+
+  for (size_t value = 1; value <= 5; ++value) {
+    const size_t index =
+        logger_core::reserveDiagnosticHistoryEntry(state, capacity);
+    TEST_ASSERT_LESS_THAN(capacity, index);
+    values[index] = value;
+  }
+
+  TEST_ASSERT_EQUAL_UINT32(5, state.totalCount);
+  TEST_ASSERT_EQUAL_UINT32(capacity, state.count);
+  TEST_ASSERT_EQUAL_UINT32(3, values[logger_core::diagnosticHistoryIndex(
+                                          state, capacity, 0)]);
+  TEST_ASSERT_EQUAL_UINT32(4, values[logger_core::diagnosticHistoryIndex(
+                                          state, capacity, 1)]);
+  TEST_ASSERT_EQUAL_UINT32(5, values[logger_core::diagnosticHistoryIndex(
+                                          state, capacity, 2)]);
+}
+
+void testDiagnosticHistoryRejectsInvalidCapacityAndOffsets() {
+  logger_core::DiagnosticHistoryState state;
+  TEST_ASSERT_EQUAL_UINT32(
+      SIZE_MAX, logger_core::reserveDiagnosticHistoryEntry(state, 0));
+  TEST_ASSERT_EQUAL_UINT32(
+      SIZE_MAX, logger_core::diagnosticHistoryIndex(state, 0, 0));
+
+  logger_core::reserveDiagnosticHistoryEntry(state, 2);
+  TEST_ASSERT_EQUAL_UINT32(
+      SIZE_MAX, logger_core::diagnosticHistoryIndex(state, 2, 1));
+
+  state.count = 3;
+  TEST_ASSERT_EQUAL_UINT32(
+      SIZE_MAX, logger_core::diagnosticHistoryIndex(state, 2, 0));
+}
+
 void testBoardProfilesTable() {
   struct Case {
     const BoardProfile* profile;
@@ -1436,6 +1474,8 @@ int main(int, char**) {
   RUN_TEST(testUtcScheduleDayAndYearRollover);
   RUN_TEST(testUtcScheduleInvalidClockAndConfigurationDoNotMutateState);
   RUN_TEST(testUtcScheduleNonDivisorIntervalUsesEpochIdentity);
+  RUN_TEST(testDiagnosticHistoryRetainsNewestEntriesInChronologicalOrder);
+  RUN_TEST(testDiagnosticHistoryRejectsInvalidCapacityAndOffsets);
   RUN_TEST(testBoardProfilesTable);
   RUN_TEST(testSiteHealthClassification);
   RUN_TEST(testEpaperRefreshPolicyLifecycleAndRollover);

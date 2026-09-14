@@ -102,6 +102,10 @@ constexpr unsigned long WEATHER_STALE_AFTER_MS =
 constexpr int READ_RETRIES = 4;
 constexpr unsigned long INITIAL_BACKOFF_MS = 250;
 constexpr unsigned long MAX_BACKOFF_MS     = 4000;
+constexpr size_t MODBUS_FAILURE_HISTORY_CAPACITY = 8;
+constexpr size_t MODBUS_FAILURE_TIMESTAMP_SIZE = 21;
+constexpr size_t MODBUS_FAILURE_CHANNEL_SIZE = 9;
+constexpr size_t MODBUS_FAILURE_REASON_SIZE = 64;
 constexpr int POST_RETRIES = 3;
 constexpr unsigned long POST_RETRY_DELAY_MS = 2000;
 constexpr unsigned long NETWORK_SOCKET_TIMEOUT_MS = 5000UL;
@@ -326,6 +330,21 @@ extern uint32_t consecutiveUploadFailures;
 extern uint32_t permanentUploadRejections;
 extern uint32_t permanentBacklogDrops;
 
+struct ModbusFailureDiagnostic {
+  char timestampUtc[MODBUS_FAILURE_TIMESTAMP_SIZE] = "";
+  char channel[MODBUS_FAILURE_CHANNEL_SIZE] = "";
+  char reason[MODBUS_FAILURE_REASON_SIZE] = "";
+  uint8_t slaveId = 0;
+  uint8_t functionCode = 0;
+  uint16_t startRegister = 0;
+  uint16_t quantity = 0;
+  uint16_t responseLength = 0;
+};
+
+extern ModbusFailureDiagnostic
+    modbusFailureHistory[MODBUS_FAILURE_HISTORY_CAPACITY];
+extern logger_core::DiagnosticHistoryState modbusFailureHistoryState;
+
 extern logger_core::LogScheduleState logScheduleState;
 extern uint32_t siteReadingRevision;
 
@@ -351,6 +370,10 @@ String nowUtcString();
 bool shouldLogNow();
 void kickSystemWatchdog();
 const char* lastSystemResetReasonName();
+void recordModbusFailure(const char* channel, uint8_t slaveId,
+                         uint8_t functionCode, uint16_t startRegister,
+                         uint16_t quantity, const char* reason,
+                         size_t responseLength);
 
 bool initPowerMonitors();
 void pollPowerMonitorsIfDue(bool force = false);

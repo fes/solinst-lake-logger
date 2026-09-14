@@ -16,7 +16,9 @@ constexpr uint16_t WEATHER_REG_LIGHT_HIGH = 0x01FE;
 constexpr uint16_t WEATHER_REG_RAINFALL = 0x0201;
 
 bool readWeatherHoldingRegistersOnce(uint8_t slaveId, uint16_t startReg, uint16_t quantity,
-                                     uint16_t *values, const char **errorOut) {
+                                     uint16_t *values, const char **errorOut,
+                                     size_t *responseLengthOut) {
+  if (responseLengthOut) *responseLengthOut = 0;
   if (quantity == 0 || quantity > 16) {
     if (errorOut) *errorOut = "unsupported quantity";
     return false;
@@ -52,6 +54,7 @@ bool readWeatherHoldingRegistersOnce(uint8_t slaveId, uint16_t startReg, uint16_
     expectedByteCount,
     responseOffset
   );
+  if (responseLengthOut) *responseLengthOut = responseLength;
 
   if (responseOffset < 0) {
     if (errorOut) {
@@ -93,10 +96,12 @@ bool readWeatherHoldingRegistersOnce(uint8_t slaveId, uint16_t startReg, uint16_
 bool readWeatherHoldingRegistersWithRetry(uint8_t slaveId, uint16_t startReg, uint16_t quantity, uint16_t *values) {
   unsigned long backoff = INITIAL_BACKOFF_MS;
   const char *lastError = nullptr;
+  size_t lastResponseLength = 0;
 
   for (int attempt = 1; attempt <= READ_RETRIES; attempt++) {
     kickSystemWatchdog();
-    if (readWeatherHoldingRegistersOnce(slaveId, startReg, quantity, values, &lastError)) {
+    if (readWeatherHoldingRegistersOnce(slaveId, startReg, quantity, values,
+                                        &lastError, &lastResponseLength)) {
       return true;
     }
 
@@ -120,6 +125,8 @@ bool readWeatherHoldingRegistersWithRetry(uint8_t slaveId, uint16_t startReg, ui
     }
   }
 
+  recordModbusFailure("weather", slaveId, 0x03, startReg, quantity,
+                      lastError, lastResponseLength);
   lastWeatherError = lastError ? String(lastError) : String("weather read failed");
   return false;
 }

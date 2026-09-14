@@ -99,6 +99,10 @@ uint32_t consecutiveUploadFailures = 0;
 uint32_t permanentUploadRejections = 0;
 uint32_t permanentBacklogDrops = 0;
 
+ModbusFailureDiagnostic
+    modbusFailureHistory[MODBUS_FAILURE_HISTORY_CAPACITY];
+logger_core::DiagnosticHistoryState modbusFailureHistoryState;
+
 logger_core::LogScheduleState logScheduleState;
 uint32_t siteReadingRevision = 0;
 
