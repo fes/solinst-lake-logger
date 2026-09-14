@@ -109,6 +109,8 @@ checksummed command without opening a port and requires no external package.
 By default, it uses Unix time as the sequence and automatically retries once
 after the next second if another invocation already used that sequence.
 
-The renderer uses black-and-white mode, partial updates for snapshots, and an
-automatic full refresh after 40 partial updates. It never leaves the display
-power supply enabled between ordinary updates.
+The renderer uses black-and-white mode and partial updates for routine
+snapshots. The first snapshot after boot receives a full refresh because it
+replaces the substantially different waiting screen, and another full refresh
+is forced after 12 partial updates to control ghosting. It never leaves the
+display power supply enabled between ordinary updates.

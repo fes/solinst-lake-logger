@@ -11,7 +11,7 @@ namespace {
 
 constexpr uint32_t DEVICE_BAUD = 115200;
 constexpr uint32_t USB_BAUD = 115200;
-constexpr uint16_t FULL_REFRESH_THRESHOLD = 40;
+constexpr uint16_t FULL_REFRESH_THRESHOLD = 12;
 constexpr uint32_t REBOOT_DELAY_MS = 100;
 
 Inkplate inkplate;
@@ -390,10 +390,11 @@ void processLine(
     sendResponse(serial, frame.sequence, "ERROR", response);
     return;
   }
+  const bool firstSnapshot = !snapshotAvailable;
   snapshot = candidate;
   snapshotAvailable = true;
   lastSnapshotMs = millis();
-  render(false);
+  render(firstSnapshot);
   sendResponse(serial, frame.sequence, "ACK", "snapshot=accepted");
 }
 
