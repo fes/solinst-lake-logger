@@ -13,6 +13,7 @@
 #include <logger_core/rolling_extrema.h>
 #include <logger_core/sc16is752_codec.h>
 #include <logger_core/site_presentation.h>
+#include "../../inkplate_6motion_display/inkplate_protocol.h"
 
 namespace {
 
@@ -1343,6 +1344,7 @@ void testHttpHeaderByteStreamConfiguredLimits() {
         static_cast<int>(
             logger_core::consumeHeaderByte(exactLine, 'A')));
   }
+
   logger_core::consumeHeaderByte(exactLine, '\r');
   logger_core::consumeHeaderByte(exactLine, '\n');
   logger_core::consumeHeaderByte(exactLine, '\r');
@@ -1437,6 +1439,81 @@ void testHttpHeaderByteStreamConfiguredLimits() {
       static_cast<int>(logger_core::consumeHeaderByte(tabAllowed, '\t')));
 }
 
+void testInkplateProtocolCrcAndFrameValidation() {
+  const char body[] = "1|42|COMMAND|status";
+  char frame[64];
+  snprintf(
+      frame, sizeof(frame), "@%s*%04X", body,
+      inkplate_protocol::crc16Ccitt(body, strlen(body)));
+
+  inkplate_protocol::Frame parsed;
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(inkplate_protocol::ParseResult::OK),
+      static_cast<int>(inkplate_protocol::parseFrame(frame, parsed)));
+  TEST_ASSERT_EQUAL_UINT32(42, parsed.sequence);
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(inkplate_protocol::FrameType::COMMAND),
+      static_cast<int>(parsed.type));
+  TEST_ASSERT_EQUAL_STRING("status", parsed.payload);
+
+  frame[5] = frame[5] == '2' ? '3' : '2';
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(inkplate_protocol::ParseResult::BAD_CHECKSUM),
+      static_cast<int>(inkplate_protocol::parseFrame(frame, parsed)));
+
+  const char zeroBody[] = "1|0|COMMAND|reboot";
+  snprintf(
+      frame, sizeof(frame), "@%s*%04X", zeroBody,
+      inkplate_protocol::crc16Ccitt(zeroBody, strlen(zeroBody)));
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(inkplate_protocol::ParseResult::BAD_SEQUENCE),
+      static_cast<int>(inkplate_protocol::parseFrame(frame, parsed)));
+
+  uint32_t unsignedValue = 0;
+  int32_t signedValue = 0;
+  TEST_ASSERT_TRUE(
+      inkplate_protocol::parseUint32("4294967295", unsignedValue));
+  TEST_ASSERT_EQUAL_UINT32(UINT32_MAX, unsignedValue);
+  TEST_ASSERT_FALSE(
+      inkplate_protocol::parseUint32("4294967296", unsignedValue));
+  TEST_ASSERT_TRUE(
+      inkplate_protocol::parseInt32("-2147483648", signedValue));
+  TEST_ASSERT_EQUAL_INT32(INT32_MIN, signedValue);
+  TEST_ASSERT_FALSE(
+      inkplate_protocol::parseInt32("-2147483649", signedValue));
+  TEST_ASSERT_FALSE(
+      inkplate_protocol::parseInt32("2147483648", signedValue));
+}
+
+void testInkplateSnapshotParsingIsStrictAndAtomic() {
+  const char valid[] =
+      "device=lake-01;timestamp=2026-09-14T19:00:00Z;health=HEALTHY;"
+      "water_valid=1;water_level_m=0.44;water_temp_c=16.8;"
+      "probe_age_s=10;future_metric=accepted";
+  inkplate_protocol::DisplaySnapshot snapshot;
+  const char* error = nullptr;
+  TEST_ASSERT_TRUE(
+      inkplate_protocol::parseSnapshot(valid, snapshot, error));
+  TEST_ASSERT_NULL(error);
+  TEST_ASSERT_EQUAL_STRING("lake-01", snapshot.device);
+  TEST_ASSERT_EQUAL_STRING("2026-09-14T19:00:00Z", snapshot.timestampUtc);
+  TEST_ASSERT_TRUE(snapshot.waterValid);
+  TEST_ASSERT_FLOAT_WITHIN(0.001f, 0.44f, snapshot.waterLevelM);
+
+  const inkplate_protocol::DisplaySnapshot before = snapshot;
+  TEST_ASSERT_FALSE(inkplate_protocol::parseSnapshot(
+      "device=changed;timestamp=bad value;health=HEALTHY", snapshot, error));
+  TEST_ASSERT_NOT_NULL(error);
+  TEST_ASSERT_EQUAL_STRING(before.device, snapshot.device);
+  TEST_ASSERT_EQUAL_STRING(before.timestampUtc, snapshot.timestampUtc);
+
+  TEST_ASSERT_FALSE(inkplate_protocol::parseSnapshot(
+      "device=lake;device=duplicate;timestamp=2026-09-14T19:00:00Z;"
+      "health=HEALTHY",
+      snapshot, error));
+  TEST_ASSERT_EQUAL_STRING("bad_snapshot_value", error);
+}
+
 }  // namespace
 
 int main(int, char**) {
@@ -1489,5 +1566,7 @@ int main(int, char**) {
   RUN_TEST(testHttpRequestRejectsMalformedLines);
   RUN_TEST(testHttpRequestLineCrlfAndConfiguredLimits);
   RUN_TEST(testHttpHeaderByteStreamConfiguredLimits);
+  RUN_TEST(testInkplateProtocolCrcAndFrameValidation);
+  RUN_TEST(testInkplateSnapshotParsingIsStrictAndAtomic);
   return UNITY_END();
 }

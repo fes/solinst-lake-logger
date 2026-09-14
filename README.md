@@ -49,6 +49,8 @@ The logger currently uploads:
 - `test/test_logger_core/` - native unit tests for the shared core
 - `hil/giga_hardware_hil/` - standalone Giga M7 dual-RS-485/e-paper HIL firmware
 - `tools/giga_hil.py` - USB-serial Giga HIL automation runner
+- `inkplate_6motion_display/` - standalone Inkplate 6MOTION STM32 firmware,
+  versioned UART protocol, enhanced 1024x758 dashboard, and utility commands
 - `r4_weather_station_probe/r4_weather_station_probe.ino` - standalone Uno R4
   WiFi probe for the RS232/RS485 Shield V1
 - `opta_weather_bus_diagnostic/opta_weather_bus_diagnostic.ino` and
@@ -58,6 +60,12 @@ The logger currently uploads:
 The paired diagnostics print timestamps, raw TX/RX or monitored bus frames,
 decoded Modbus requests/responses, CRC results, Modbus exceptions, response
 timeouts, monitor heartbeats, and receive-buffer overflow events.
+
+The Inkplate firmware is uploaded independently with Arduino IDE using
+Soldered's official Inkplate MOTION board package. It accepts checksummed,
+bounded semantic snapshots over a dedicated 3.3 V UART and supports status,
+refresh, clear, pause/resume, reboot, and deep-sleep utility commands. See
+`inkplate_6motion_display/README.md` for setup, wiring, and protocol details.
 
 In master mode, either diagnostic alternates wind-speed requests between the
 factory SEN0657 endpoint (ID 1 at 4800 baud, 8N1) and the provisioned endpoint
