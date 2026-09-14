@@ -15,7 +15,9 @@ constexpr size_t MAX_PAYLOAD_LENGTH = 1400;
 
 enum class FrameType : uint8_t {
   SNAPSHOT,
-  COMMAND
+  COMMAND,
+  ACK,
+  ERROR_RESPONSE
 };
 
 enum class ParseResult : uint8_t {
@@ -223,6 +225,10 @@ inline ParseResult parseFrame(const char* line, Frame& output) {
     output.type = FrameType::SNAPSHOT;
   } else if (strcmp(type, "COMMAND") == 0) {
     output.type = FrameType::COMMAND;
+  } else if (strcmp(type, "ACK") == 0) {
+    output.type = FrameType::ACK;
+  } else if (strcmp(type, "ERROR") == 0) {
+    output.type = FrameType::ERROR_RESPONSE;
   } else {
     return ParseResult::BAD_TYPE;
   }

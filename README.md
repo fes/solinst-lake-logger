@@ -13,7 +13,8 @@ WiFi** that:
   - **solar input** monitor at **0x41**
 - uses the Opta status LEDs for field diagnostics
 - supports a **2.42 inch SSD1309 I2C OLED** on Opta
-- supports the **Waveshare 4.26-inch e-Paper HAT, SKU 26376** on Giga
+- supports either the **Inkplate 6MOTION over UART** or the
+  **Waveshare 4.26-inch e-Paper HAT, SKU 26376** on Giga
 - reads a **DFRobot SEN0657 7-in-1 weather station** on the shared Opta bus
   when enabled, or on Giga's independent second RS-485 channel
 
@@ -104,6 +105,19 @@ The Giga profile assumes:
   D6 PWR, D11 MOSI, and D13 SCK. Power the GH1.25 connector from **3.3 V**:
   Waveshare requires its VCC and host I/O voltage to match, and Giga GPIO is
   3.3 V only. Do not power this connection from 5 V.
+- Inkplate 6MOTION UART: Giga D1 TX to Inkplate PB11 RX, Giga D0 RX from
+  Inkplate PB10 TX, plus common GND. Both sides use 3.3 V signaling at
+  115200 baud, 8N1.
+
+At startup, the Giga sends a checksummed `status` command on `Serial1`. A valid
+sequence-matched Inkplate acknowledgement selects the Inkplate backend;
+otherwise the logger initializes the legacy SPI panel. While using the legacy
+panel it periodically retries detection and switches to the Inkplate when it
+appears. `/status` reports `display_backend`, `display_link_failures`, and
+`display_last_error`. Exact `/display/status`, `/display/refresh`,
+`/display/clear`, `/display/pause`, `/display/resume`, `/display/reboot`, and
+`/display/sleep` routes forward maintenance commands to the Inkplate. Status
+uses GET; every command route requires POST.
 
 SKU 26376 uses the black/white `GDEQ0426T82`/SSD1677 panel and GxEPD2's
 `GxEPD2_426_GDEQ0426T82` driver. The similarly sized Waveshare four-color

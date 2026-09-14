@@ -24,6 +24,27 @@ HttpRoute routeTarget(const char* target, size_t targetLength) {
   if (equals(target, targetLength, "/status")) return HttpRoute::STATUS;
   if (equals(target, targetLength, "/probe")) return HttpRoute::PROBE;
   if (equals(target, targetLength, "/reset")) return HttpRoute::RESET;
+  if (equals(target, targetLength, "/display/status")) {
+    return HttpRoute::DISPLAY_STATUS;
+  }
+  if (equals(target, targetLength, "/display/refresh")) {
+    return HttpRoute::DISPLAY_REFRESH;
+  }
+  if (equals(target, targetLength, "/display/clear")) {
+    return HttpRoute::DISPLAY_CLEAR;
+  }
+  if (equals(target, targetLength, "/display/pause")) {
+    return HttpRoute::DISPLAY_PAUSE;
+  }
+  if (equals(target, targetLength, "/display/resume")) {
+    return HttpRoute::DISPLAY_RESUME;
+  }
+  if (equals(target, targetLength, "/display/reboot")) {
+    return HttpRoute::DISPLAY_REBOOT;
+  }
+  if (equals(target, targetLength, "/display/sleep")) {
+    return HttpRoute::DISPLAY_SLEEP;
+  }
   return HttpRoute::UNKNOWN;
 }
 
@@ -118,8 +139,11 @@ HttpRequestParseResult parseHttpRequestLine(const char* line, size_t length,
   }
   if (pathLength == 0) return HttpRequestParseResult::BAD_REQUEST;
 
-  request.method =
-      equals(line, methodEnd, "GET") ? HttpMethod::GET : HttpMethod::OTHER;
+  request.method = equals(line, methodEnd, "GET")
+                       ? HttpMethod::GET
+                       : (equals(line, methodEnd, "POST")
+                              ? HttpMethod::POST
+                              : HttpMethod::OTHER);
   request.targetOffset = targetStart;
   request.targetLength = targetLength;
   request.pathLength = pathLength;
@@ -134,7 +158,11 @@ HttpRouteDecision routeHttpRequest(const HttpRequest& request) {
   if (request.route == HttpRoute::UNKNOWN) {
     return HttpRouteDecision::NOT_FOUND;
   }
-  if (request.method != HttpMethod::GET) {
+  const bool displayAction =
+      request.route >= HttpRoute::DISPLAY_REFRESH &&
+      request.route <= HttpRoute::DISPLAY_SLEEP;
+  if ((displayAction && request.method != HttpMethod::POST) ||
+      (!displayAction && request.method != HttpMethod::GET)) {
     return HttpRouteDecision::METHOD_NOT_ALLOWED;
   }
   switch (request.route) {
@@ -142,6 +170,13 @@ HttpRouteDecision routeHttpRequest(const HttpRequest& request) {
     case HttpRoute::STATUS: return HttpRouteDecision::STATUS;
     case HttpRoute::PROBE: return HttpRouteDecision::PROBE;
     case HttpRoute::RESET: return HttpRouteDecision::RESET;
+    case HttpRoute::DISPLAY_STATUS: return HttpRouteDecision::DISPLAY_STATUS;
+    case HttpRoute::DISPLAY_REFRESH: return HttpRouteDecision::DISPLAY_REFRESH;
+    case HttpRoute::DISPLAY_CLEAR: return HttpRouteDecision::DISPLAY_CLEAR;
+    case HttpRoute::DISPLAY_PAUSE: return HttpRouteDecision::DISPLAY_PAUSE;
+    case HttpRoute::DISPLAY_RESUME: return HttpRouteDecision::DISPLAY_RESUME;
+    case HttpRoute::DISPLAY_REBOOT: return HttpRouteDecision::DISPLAY_REBOOT;
+    case HttpRoute::DISPLAY_SLEEP: return HttpRouteDecision::DISPLAY_SLEEP;
     case HttpRoute::UNKNOWN: return HttpRouteDecision::NOT_FOUND;
   }
   return HttpRouteDecision::NOT_FOUND;

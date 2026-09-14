@@ -26,3 +26,11 @@ constexpr char GIGA_EPAPER_TIMEZONE[] =
     "PST8PDT,M3.2.0/2,M11.1.0/2";
 constexpr uint16_t GIGA_EPAPER_ACTIVE_START_MINUTE = 5U * 60U;
 constexpr uint16_t GIGA_EPAPER_QUIET_START_MINUTE = 23U * 60U;
+
+// Inkplate 6MOTION wired display on Giga Serial1: D1 TX, D0 RX.
+constexpr uint32_t GIGA_INKPLATE_BAUD = 115200;
+constexpr uint32_t GIGA_INKPLATE_DETECT_TIMEOUT_MS = 1500;
+constexpr uint32_t GIGA_INKPLATE_ACK_TIMEOUT_MS = 10000;
+constexpr uint32_t GIGA_INKPLATE_REDETECT_INTERVAL_MS = 60UL * 1000UL;
+constexpr uint32_t GIGA_INKPLATE_REFRESH_INTERVAL_MS =
+    15UL * 60UL * 1000UL;

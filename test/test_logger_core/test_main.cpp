@@ -1209,6 +1209,36 @@ void testHttpRequestRoutesAreExactAndQueriesAreNotAccepted() {
       {"GET /reset HTTP/1.1", logger_core::HttpMethod::GET,
        logger_core::HttpRoute::RESET, logger_core::HttpRouteDecision::RESET,
        false},
+      {"GET /display/status HTTP/1.1", logger_core::HttpMethod::GET,
+       logger_core::HttpRoute::DISPLAY_STATUS,
+       logger_core::HttpRouteDecision::DISPLAY_STATUS, false},
+      {"POST /display/refresh HTTP/1.1", logger_core::HttpMethod::POST,
+       logger_core::HttpRoute::DISPLAY_REFRESH,
+       logger_core::HttpRouteDecision::DISPLAY_REFRESH, false},
+      {"POST /display/clear HTTP/1.1", logger_core::HttpMethod::POST,
+       logger_core::HttpRoute::DISPLAY_CLEAR,
+       logger_core::HttpRouteDecision::DISPLAY_CLEAR, false},
+      {"POST /display/pause HTTP/1.1", logger_core::HttpMethod::POST,
+       logger_core::HttpRoute::DISPLAY_PAUSE,
+       logger_core::HttpRouteDecision::DISPLAY_PAUSE, false},
+      {"POST /display/resume HTTP/1.1", logger_core::HttpMethod::POST,
+       logger_core::HttpRoute::DISPLAY_RESUME,
+       logger_core::HttpRouteDecision::DISPLAY_RESUME, false},
+      {"POST /display/reboot HTTP/1.1", logger_core::HttpMethod::POST,
+       logger_core::HttpRoute::DISPLAY_REBOOT,
+       logger_core::HttpRouteDecision::DISPLAY_REBOOT, false},
+      {"POST /display/sleep HTTP/1.1", logger_core::HttpMethod::POST,
+       logger_core::HttpRoute::DISPLAY_SLEEP,
+       logger_core::HttpRouteDecision::DISPLAY_SLEEP, false},
+      {"GET /display/sleep HTTP/1.1", logger_core::HttpMethod::GET,
+       logger_core::HttpRoute::DISPLAY_SLEEP,
+       logger_core::HttpRouteDecision::METHOD_NOT_ALLOWED, false},
+      {"GET /display/refresh HTTP/1.1", logger_core::HttpMethod::GET,
+       logger_core::HttpRoute::DISPLAY_REFRESH,
+       logger_core::HttpRouteDecision::METHOD_NOT_ALLOWED, false},
+      {"GET /display/status/extra HTTP/1.1", logger_core::HttpMethod::GET,
+       logger_core::HttpRoute::UNKNOWN,
+       logger_core::HttpRouteDecision::NOT_FOUND, false},
       {"GET /reset-anything HTTP/1.1", logger_core::HttpMethod::GET,
        logger_core::HttpRoute::UNKNOWN,
        logger_core::HttpRouteDecision::NOT_FOUND, false},
@@ -1224,7 +1254,7 @@ void testHttpRequestRoutesAreExactAndQueriesAreNotAccepted() {
       {"GET /unknown?path=/reset HTTP/1.1", logger_core::HttpMethod::GET,
        logger_core::HttpRoute::UNKNOWN,
        logger_core::HttpRouteDecision::NOT_FOUND, true},
-      {"POST /reset HTTP/1.1", logger_core::HttpMethod::OTHER,
+      {"POST /reset HTTP/1.1", logger_core::HttpMethod::POST,
        logger_core::HttpRoute::RESET,
        logger_core::HttpRouteDecision::METHOD_NOT_ALLOWED, false},
   };
@@ -1455,6 +1485,29 @@ void testInkplateProtocolCrcAndFrameValidation() {
       static_cast<int>(inkplate_protocol::FrameType::COMMAND),
       static_cast<int>(parsed.type));
   TEST_ASSERT_EQUAL_STRING("status", parsed.payload);
+
+  const char ackBody[] = "1|42|ACK|state=ready";
+  snprintf(
+      frame, sizeof(frame), "@%s*%04X", ackBody,
+      inkplate_protocol::crc16Ccitt(ackBody, strlen(ackBody)));
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(inkplate_protocol::ParseResult::OK),
+      static_cast<int>(inkplate_protocol::parseFrame(frame, parsed)));
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(inkplate_protocol::FrameType::ACK),
+      static_cast<int>(parsed.type));
+
+  const char errorBody[] =
+      "1|42|ERROR|reason=stale_sequence;last_sequence=99";
+  snprintf(
+      frame, sizeof(frame), "@%s*%04X", errorBody,
+      inkplate_protocol::crc16Ccitt(errorBody, strlen(errorBody)));
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(inkplate_protocol::ParseResult::OK),
+      static_cast<int>(inkplate_protocol::parseFrame(frame, parsed)));
+  TEST_ASSERT_EQUAL(
+      static_cast<int>(inkplate_protocol::FrameType::ERROR_RESPONSE),
+      static_cast<int>(parsed.type));
 
   frame[5] = frame[5] == '2' ? '3' : '2';
   TEST_ASSERT_EQUAL(

@@ -13,6 +13,7 @@ constexpr size_t HTTP_MAX_HEADER_COUNT = 32;
 
 enum class HttpMethod : uint8_t {
   GET,
+  POST,
   OTHER
 };
 
@@ -21,6 +22,13 @@ enum class HttpRoute : uint8_t {
   STATUS,
   PROBE,
   RESET,
+  DISPLAY_STATUS,
+  DISPLAY_REFRESH,
+  DISPLAY_CLEAR,
+  DISPLAY_PAUSE,
+  DISPLAY_RESUME,
+  DISPLAY_REBOOT,
+  DISPLAY_SLEEP,
   UNKNOWN
 };
 
@@ -44,6 +52,13 @@ enum class HttpRouteDecision : uint8_t {
   STATUS,
   PROBE,
   RESET,
+  DISPLAY_STATUS,
+  DISPLAY_REFRESH,
+  DISPLAY_CLEAR,
+  DISPLAY_PAUSE,
+  DISPLAY_RESUME,
+  DISPLAY_REBOOT,
+  DISPLAY_SLEEP,
   NOT_FOUND,
   METHOD_NOT_ALLOWED
 };

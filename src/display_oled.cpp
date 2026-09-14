@@ -216,4 +216,26 @@ uint32_t displayRefreshCount() {
 uint32_t displayI2cRecoveryCount() {
   return displayI2cRecoveryCountLocal;
 }
+
+const char* displayBackendName() {
+  return "oled_i2c";
+}
+
+String displayLastError() {
+  return "";
+}
+
+uint32_t displayLinkFailureCount() {
+  return 0;
+}
+
+bool runDisplayCommand(const char* command, String& response) {
+  if (command != nullptr && strcmp(command, "refresh") == 0) {
+    wakeDisplayForTimeout();
+    response = "OLED refresh scheduled";
+    return true;
+  }
+  response = "command requires Inkplate UART display";
+  return false;
+}
 #endif

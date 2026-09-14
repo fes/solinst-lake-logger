@@ -471,3 +471,33 @@ String lastDisplayWakeRequestAge();
 String lastDisplayRefreshAge();
 uint32_t displayRefreshCount();
 uint32_t displayI2cRecoveryCount();
+const char* displayBackendName();
+String displayLastError();
+uint32_t displayLinkFailureCount();
+bool runDisplayCommand(const char* command, String& response);
+
+#if defined(LOGGER_BOARD_GIGA)
+bool initLegacyEpaperDisplay();
+void wakeLegacyEpaperDisplay();
+void updateLegacyEpaperDisplay();
+void sleepLegacyEpaperDisplay();
+String lastLegacyEpaperWakeRequestUtc();
+String lastLegacyEpaperRefreshUtc();
+String lastLegacyEpaperWakeRequestAge();
+String lastLegacyEpaperRefreshAge();
+uint32_t legacyEpaperRefreshCount();
+uint32_t legacyEpaperRecoveryCount();
+
+bool initInkplateUartDisplay();
+void updateInkplateUartDisplay();
+void wakeInkplateUartDisplay();
+void sleepInkplateUartDisplay();
+String lastInkplateWakeRequestUtc();
+String lastInkplateRefreshUtc();
+String lastInkplateWakeRequestAge();
+String lastInkplateRefreshAge();
+uint32_t inkplateRefreshCount();
+uint32_t inkplateLinkFailureCount();
+String inkplateLastError();
+bool sendInkplateCommand(const char* command, String& response);
+#endif

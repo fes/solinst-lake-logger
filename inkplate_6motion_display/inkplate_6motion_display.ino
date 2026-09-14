@@ -360,13 +360,23 @@ void processLine(
   }
   if (sourceLastSequence != 0 && frame.sequence <= sourceLastSequence) {
     ++rejectedFrames;
-    sendResponse(serial, frame.sequence, "ERROR", "reason=stale_sequence");
+    char response[80];
+    snprintf(
+        response, sizeof(response), "reason=stale_sequence;last_sequence=%lu",
+        static_cast<unsigned long>(sourceLastSequence));
+    sendResponse(serial, frame.sequence, "ERROR", response);
     return;
   }
   sourceLastSequence = frame.sequence;
   ++acceptedFrames;
   if (frame.type == FrameType::COMMAND) {
     handleCommand(serial, frame, sourceLastSequence);
+    return;
+  }
+  if (frame.type != FrameType::SNAPSHOT) {
+    ++rejectedFrames;
+    --acceptedFrames;
+    sendResponse(serial, frame.sequence, "ERROR", "reason=unexpected_type");
     return;
   }
 

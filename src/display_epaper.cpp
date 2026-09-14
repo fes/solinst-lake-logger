@@ -334,7 +334,7 @@ bool renderSnapshot(
 
 }  // namespace
 
-bool initDisplay() {
+bool initLegacyEpaperDisplay() {
   if (!GIGA_EPAPER_ENABLED) {
     displayPresent = false;
     return false;
@@ -354,17 +354,17 @@ bool initDisplay() {
   return true;
 }
 
-void wakeDisplayForTimeout() {
+void wakeLegacyEpaperDisplay() {
   lastDisplayWakeRequestMs = millis();
   lastDisplayWakeRequestUtcValue = nowUtcString();
   displayRefreshPending = true;
 }
 
-void updateDisplay() {
+void updateLegacyEpaperDisplay() {
   const uint32_t nowMs = millis();
   if (!displayPresent) {
     if (logger_core::deadlinePending(nowMs, nextDisplayAttemptMs)) return;
-    if (!initDisplay()) {
+    if (!initLegacyEpaperDisplay()) {
       nextDisplayAttemptMs = nowMs + DISPLAY_RETRY_INTERVAL_MS;
       return;
     }
@@ -426,36 +426,36 @@ void updateDisplay() {
       refreshUtc.length() > 0 ? refreshUtc : String("clock unavailable"));
 }
 
-void sleepDisplay() {
+void sleepLegacyEpaperDisplay() {
   epaper.powerOff();
   displayAwake = false;
 }
 
-String lastDisplayWakeRequestUtc() {
+String lastLegacyEpaperWakeRequestUtc() {
   return lastDisplayWakeRequestUtcValue;
 }
 
-String lastDisplayRefreshUtc() {
+String lastLegacyEpaperRefreshUtc() {
   return lastDisplayRefreshUtcValue;
 }
 
-String lastDisplayWakeRequestAge() {
+String lastLegacyEpaperWakeRequestAge() {
   return lastDisplayWakeRequestMs == 0
              ? String("never")
              : millisAgeString(lastDisplayWakeRequestMs);
 }
 
-String lastDisplayRefreshAge() {
+String lastLegacyEpaperRefreshAge() {
   return lastDisplayRefreshMs == 0
              ? String("never")
              : millisAgeString(lastDisplayRefreshMs);
 }
 
-uint32_t displayRefreshCount() {
+uint32_t legacyEpaperRefreshCount() {
   return displayRefreshCountLocal;
 }
 
-uint32_t displayI2cRecoveryCount() {
+uint32_t legacyEpaperRecoveryCount() {
   return displayRecoveryCountLocal;
 }
 #endif

@@ -40,6 +40,7 @@ const char* httpReasonPhrase(int statusCode) {
     case 400: return "Bad Request";
     case 404: return "Not Found";
     case 405: return "Method Not Allowed";
+    case 409: return "Conflict";
     case 414: return "URI Too Long";
     case 431: return "Request Header Fields Too Large";
     case 500: return "Internal Server Error";
@@ -123,8 +124,13 @@ String endpointIndexHtml() {
   body += "<h1>Solinst Lake Logger</h1><p>Available endpoints:</p><ul>";
   body += "<li><a href=\"/status\">/status</a> - cached device status JSON</li>";
   body += "<li><a href=\"/probe\">/probe</a> - trigger a live probe and return JSON</li>";
+  body += "<li><a href=\"/display/status\">/display/status</a> - query the attached display</li>";
+  body += "<li><button onclick=\"displayCommand('refresh',false)\">Refresh display</button></li>";
+  body += "<li><button onclick=\"displayCommand('reboot',true)\">Reboot display</button></li>";
+  body += "<li><button onclick=\"displayCommand('sleep',true)\">Deep-sleep display</button></li>";
   body += "<li><button onclick=\"confirmReset()\">/reset</button> - reboot the device</li>";
-  body += "</ul><script>function confirmReset(){if(confirm('Reset the lake logger now?')){window.location='/reset';}}</script></body></html>";
+  body += "</ul><script>function confirmReset(){if(confirm('Reset the lake logger now?')){window.location='/reset';}}";
+  body += "function displayCommand(c,d){if(d&&!confirm('Send '+c+' to the display?'))return;fetch('/display/'+c,{method:'POST'}).then(r=>r.json()).then(j=>alert(JSON.stringify(j))).catch(e=>alert(e));}</script></body></html>";
   return body;
 }
 
@@ -183,6 +189,8 @@ String statusJson() {
                         DisplayBehavior::PERSISTENT_EPAPER
                   ? "persistent_epaper"
                   : "wake_on_demand") + "\",";
+  body += "\"display_backend\":\"" +
+          jsonEscape(String(displayBackendName())) + "\",";
   body += "\"device_id\":\"" + jsonEscape(String(DEVICE_ID)) + "\",";
   body += "\"wifi_connected\":" + String(WiFi.status() == WL_CONNECTED ? "true" : "false") + ",";
   body += "\"http_server_started\":" + String(httpServerStarted ? "true" : "false") + ",";
@@ -268,6 +276,10 @@ String statusJson() {
   body += "\"display_refresh_count\":" + String(displayRefreshCount()) + ",";
   body += "\"display_recovery_count\":" + String(displayI2cRecoveryCount()) + ",";
   body += "\"display_i2c_recovery_count\":" + String(displayI2cRecoveryCount()) + ",";
+  body += "\"display_link_failures\":" +
+          String(displayLinkFailureCount()) + ",";
+  body += "\"display_last_error\":\"" +
+          jsonEscape(displayLastError()) + "\",";
   body += "\"user_button_present\":" + String(userButtonPresent ? "true" : "false") + ",";
   body += "\"last_user_button_press_utc\":\"" + jsonEscape(lastUserButtonPressUtc) + "\",";
   body += "\"last_user_button_press_age\":\"" + jsonEscape(millisAgeString(lastUserButtonPressMs)) + "\",";
@@ -435,7 +447,12 @@ void handleHttpClient() {
       logger_core::routeHttpRequest(request);
   if (routeDecision == logger_core::HttpRouteDecision::METHOD_NOT_ALLOWED) {
     Serial.println("HTTP: method not allowed");
-    sendHttpError(client, 405, "method not allowed", "Allow: GET");
+    const bool displayAction =
+        request.route >= logger_core::HttpRoute::DISPLAY_REFRESH &&
+        request.route <= logger_core::HttpRoute::DISPLAY_SLEEP;
+    sendHttpError(
+        client, 405, "method not allowed",
+        displayAction ? "Allow: POST" : "Allow: GET");
   } else if (routeDecision == logger_core::HttpRouteDecision::INDEX) {
     Serial.println("HTTP: handling /");
     sendHttpHtml(client, 200, endpointIndexHtml());
@@ -459,6 +476,30 @@ void handleHttpClient() {
     client.flush();
     delay(200);
     NVIC_SystemReset();
+  } else if (
+      routeDecision >= logger_core::HttpRouteDecision::DISPLAY_STATUS &&
+      routeDecision <= logger_core::HttpRouteDecision::DISPLAY_SLEEP) {
+    const char* command = nullptr;
+    switch (routeDecision) {
+      case logger_core::HttpRouteDecision::DISPLAY_STATUS: command = "status"; break;
+      case logger_core::HttpRouteDecision::DISPLAY_REFRESH: command = "refresh"; break;
+      case logger_core::HttpRouteDecision::DISPLAY_CLEAR: command = "clear"; break;
+      case logger_core::HttpRouteDecision::DISPLAY_PAUSE: command = "pause"; break;
+      case logger_core::HttpRouteDecision::DISPLAY_RESUME: command = "resume"; break;
+      case logger_core::HttpRouteDecision::DISPLAY_REBOOT: command = "reboot"; break;
+      case logger_core::HttpRouteDecision::DISPLAY_SLEEP: command = "sleep"; break;
+      default: break;
+    }
+    String response;
+    const bool ok = command != nullptr && runDisplayCommand(command, response);
+    String body = "{\"ok\":";
+    body += ok ? "true" : "false";
+    body += ",\"display_backend\":\"";
+    body += jsonEscape(String(displayBackendName()));
+    body += "\",\"response\":\"";
+    body += jsonEscape(response);
+    body += "\"}";
+    sendHttpJson(client, ok ? 200 : 409, body);
   } else {
     Serial.println("HTTP: route not found, sending HTML index");
     sendHttpHtml(client, 404, endpointIndexHtml());
