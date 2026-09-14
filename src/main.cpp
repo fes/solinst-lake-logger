@@ -150,7 +150,7 @@ void loop() {
 
   ACTIVE_AUXILIARY_SENSORS.pollIfDue(false);
 
-  if (detectedSensorId != 0 && shouldLogNow()) {
+  if (shouldLogNow()) {
     performProbeAndUpload("scheduled interval");
   }
 

@@ -323,6 +323,7 @@ extern String lastPermanentUploadRejectedReadingUtc;
 
 extern uint32_t successfulProbeReads;
 extern uint32_t failedProbeReads;
+extern uint32_t waterUnavailableObservations;
 extern uint32_t successfulUploads;
 extern uint32_t failedUploads;
 extern uint32_t droppedBacklogEntries;

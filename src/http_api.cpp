@@ -296,6 +296,8 @@ String statusJson() {
   body += "\"consecutive_upload_failures\":" + String(consecutiveUploadFailures) + ",";
   body += "\"successful_probe_reads\":" + String(successfulProbeReads) + ",";
   body += "\"failed_probe_reads\":" + String(failedProbeReads) + ",";
+  body += "\"water_unavailable_observations\":" +
+          String(waterUnavailableObservations) + ",";
   body += "\"successful_uploads\":" + String(successfulUploads) + ",";
   body += "\"failed_uploads\":" + String(failedUploads) + ",";
   body += "\"permanent_upload_rejections\":" + String(permanentUploadRejections) + ",";

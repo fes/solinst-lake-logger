@@ -148,10 +148,12 @@ Only enable it on Opta after configuring and wiring it as follows:
   termination, and common reference appropriate for the cable run.
 
 The logger samples weather every five minutes in RAM and uploads one summary
-with each hourly lake reading. The hourly row contains the latest raw weather
-values plus min/max/average temperature, humidity, pressure, wind speed, and
-illumination. Wind direction is a circular average, so north readings near
-`0` and `360` degrees average correctly.
+with each hourly site observation. If the Solinst read fails, the observation
+sets `water_valid` to `false`, sends null water measurements, and still
+preserves available weather and power data. The hourly row contains the latest
+raw weather values plus min/max/average temperature, humidity, pressure, wind
+speed, and illumination. Wind direction is a circular average, so north
+readings near `0` and `360` degrees average correctly.
 
 - wind speed, direction, air temperature, relative humidity, barometric pressure,
   and illumination are instantaneous readings;
@@ -657,6 +659,9 @@ The service should implement `POST FESLABS_INGEST_PATH` and:
    **Uploaded fields** below. Authentication currently uses the payload's
    `secret` property, matching Apps Script.
 2. Validate `secret`, `device_id`, `timestamp_utc`, and the measurement values.
+   `water_valid` defaults to `true` for backward compatibility. Valid water
+   observations require finite measurements; invalid water observations
+   require null measurements and may still contain weather and power data.
 3. Treat `(device_id, timestamp_utc)` as an idempotency key. The firmware has an
    in-memory backlog and retries requests, so repeated delivery must not create
    duplicate readings. Return `2xx` for a replay of an already accepted reading
@@ -695,6 +700,7 @@ Each successful reading uploads these main values:
 - `modbus_id`
 - `serial_number`
 - `firmware`
+- `water_valid`
 - `water_level_m`
 - `temperature_c`
 
@@ -815,6 +821,9 @@ This makes the logger much less likely to starve the HTTP server or local UI whe
 
 - The logger runs on **hourly UTC boundaries, on the hour**.
 - The system waits until the clock is valid before scheduled logging begins.
+- A failed Solinst read produces a partial hourly observation with
+  `water_valid=false`; weather and power continue to upload without stale water
+  values.
 - If an upload fails, the reading is queued in a small in-memory backlog and retried later.
 - Upload retries are now throttled by cooldown/backoff after repeated failures.
 - The OLED display remains in power-save mode until the user presses the Opta button.

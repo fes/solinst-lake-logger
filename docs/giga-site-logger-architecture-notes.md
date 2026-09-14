@@ -208,7 +208,10 @@ Suggested contents:
 - upload/status metadata
 - diagnostics/error fields
 
-This allows one log row to contain partial data. For example, the lake reading can still be valid when the weather station is absent.
+This allows one log row to contain partial data. The implemented contract uses
+`water_valid=false` and null water measurements when the Solinst read fails,
+while retaining available weather and power data. The inverse remains valid:
+a lake reading can still be uploaded when the weather station is absent.
 
 ## Multi-core readiness
 

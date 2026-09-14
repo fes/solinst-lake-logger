@@ -11,8 +11,15 @@ String makePayload(const ProbeReading &r) {
   payload += "\"modbus_id\":" + String(r.modbusId) + ",";
   payload += "\"serial_number\":\"" + String(r.sensorIdentity.serialNumber) + "\",";
   payload += "\"firmware\":\"" + String(r.sensorIdentity.fwMajor) + "." + String(r.sensorIdentity.fwMinor) + "\",";
-  payload += "\"water_level_m\":" + String(r.level, 4) + ",";
-  payload += "\"temperature_c\":" + String(r.temperature, 3) + ",";
+  payload += "\"water_valid\":" + String(r.valid ? "true" : "false") + ",";
+  payload += "\"water_level_m\":";
+  payload += r.valid && isfinite(r.level) ? String(r.level, 4) : String("null");
+  payload += ",";
+  payload += "\"temperature_c\":";
+  payload += r.valid && isfinite(r.temperature)
+                 ? String(r.temperature, 3)
+                 : String("null");
+  payload += ",";
 
   appendPowerMonitorJson(payload, "battery_output", r.batteryOutput);
   appendPowerMonitorJson(payload, "solar_input", r.solarInput);
@@ -23,7 +30,9 @@ String makePayload(const ProbeReading &r) {
   payload += ",";
   payload += "\"solar_charging_battery\":" + String(solarChargingNow ? "true" : "false") + ",";
 
-  payload += "\"status\":\"OK\"";
+  payload += "\"status\":\"";
+  payload += r.valid ? "OK" : "WATER_UNAVAILABLE";
+  payload += "\"";
   payload += "}";
   return payload;
 }

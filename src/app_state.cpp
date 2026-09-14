@@ -92,6 +92,7 @@ String lastPermanentUploadRejectedReadingUtc = "";
 
 uint32_t successfulProbeReads = 0;
 uint32_t failedProbeReads = 0;
+uint32_t waterUnavailableObservations = 0;
 uint32_t successfulUploads = 0;
 uint32_t failedUploads = 0;
 uint32_t droppedBacklogEntries = 0;
