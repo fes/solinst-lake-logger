@@ -71,9 +71,16 @@ void formatAge(int32_t seconds, char* output, size_t length) {
   }
 }
 
+void formatFloat(float value, uint8_t decimalPlaces, char* output) {
+  // The default Inkplate Newlib Nano runtime omits floating-point printf.
+  dtostrf(value, 1, decimalPlaces, output);
+}
+
 void drawDashboard() {
   char line[96];
   char age[24];
+  char value1[48];
+  char value2[48];
   const int16_t width = inkplate.width();
   const int16_t margin = 16;
   const int16_t gap = 14;
@@ -96,9 +103,11 @@ void drawDashboard() {
 
   drawCard(margin, topY, halfWidth, topHeight, "WATER");
   if (snapshot.waterValid) {
-    snprintf(line, sizeof(line), "%.3f m", snapshot.waterLevelM);
+    formatFloat(snapshot.waterLevelM, 3, value1);
+    snprintf(line, sizeof(line), "%s m", value1);
     printAt(margin + 24, topY + 88, 6, line);
-    snprintf(line, sizeof(line), "%.2f C", snapshot.waterTemperatureC);
+    formatFloat(snapshot.waterTemperatureC, 2, value1);
+    snprintf(line, sizeof(line), "%s C", value1);
     printAt(margin + 28, topY + 166, 4, line);
   } else {
     printAt(margin + 24, topY + 105, 5, "UNAVAILABLE");
@@ -116,18 +125,22 @@ void drawDashboard() {
   const int16_t weatherX = margin + halfWidth + gap;
   drawCard(weatherX, topY, halfWidth, topHeight, "WEATHER");
   if (snapshot.weatherValid) {
+    formatFloat(snapshot.airTemperatureC, 1, value1);
+    formatFloat(snapshot.relativeHumidityPct, 0, value2);
     snprintf(
-        line, sizeof(line), "%.1f C     %.0f%% RH",
-        snapshot.airTemperatureC, snapshot.relativeHumidityPct);
+        line, sizeof(line), "%s C     %s%% RH", value1, value2);
     printAt(weatherX + 24, topY + 76, 4, line);
-    snprintf(line, sizeof(line), "%.0f hPa", snapshot.barometricPressureHpa);
+    formatFloat(snapshot.barometricPressureHpa, 0, value1);
+    snprintf(line, sizeof(line), "%s hPa", value1);
     printAt(weatherX + 24, topY + 132, 3, line);
+    formatFloat(snapshot.windSpeedMs, 1, value1);
+    formatFloat(snapshot.windDirectionDeg, 0, value2);
     snprintf(
-        line, sizeof(line), "Wind %.1f m/s @ %.0f deg",
-        snapshot.windSpeedMs, snapshot.windDirectionDeg);
+        line, sizeof(line), "Wind %s m/s @ %s deg", value1, value2);
     printAt(weatherX + 24, topY + 182, 3, line);
     if (snapshot.rainfallValid) {
-      snprintf(line, sizeof(line), "Interval rain %.1f mm", snapshot.rainfallIntervalMm);
+      formatFloat(snapshot.rainfallIntervalMm, 1, value1);
+      snprintf(line, sizeof(line), "Interval rain %s mm", value1);
     } else {
       snprintf(line, sizeof(line), "Interval rain --");
     }
@@ -144,25 +157,29 @@ void drawDashboard() {
 
   drawCard(margin, lowerY, thirdWidth, lowerHeight, "POWER");
   if (snapshot.batteryValid) {
+    formatFloat(snapshot.batteryVoltageV, 2, value1);
+    formatFloat(snapshot.batteryChargePct, 0, value2);
     snprintf(
-        line, sizeof(line), "%.2f V   %.0f%%",
-        snapshot.batteryVoltageV, snapshot.batteryChargePct);
+        line, sizeof(line), "%s V   %s%%", value1, value2);
     printAt(margin + 20, lowerY + 72, 3, line);
   } else {
     printAt(margin + 20, lowerY + 78, 3, "BATTERY --");
   }
   if (snapshot.batteryExtremaValid) {
+    formatFloat(snapshot.batteryVoltageMin24hV, 2, value1);
+    formatFloat(snapshot.batteryVoltageMax24hV, 2, value2);
     snprintf(
-        line, sizeof(line), "24h %.2f - %.2f V",
-        snapshot.batteryVoltageMin24hV, snapshot.batteryVoltageMax24hV);
+        line, sizeof(line), "24h %s - %s V", value1, value2);
     printAt(margin + 20, lowerY + 120, 2, line);
   }
   if (snapshot.solarValid) {
-    snprintf(line, sizeof(line), "Solar %.2f V", snapshot.solarVoltageV);
+    formatFloat(snapshot.solarVoltageV, 2, value1);
+    snprintf(line, sizeof(line), "Solar %s V", value1);
     printAt(margin + 20, lowerY + 168, 2, line);
+    formatFloat(snapshot.solarCurrentA, 2, value1);
+    formatFloat(snapshot.solarPowerW, 1, value2);
     snprintf(
-        line, sizeof(line), "%.2f A   %.1f W",
-        snapshot.solarCurrentA, snapshot.solarPowerW);
+        line, sizeof(line), "%s A   %s W", value1, value2);
     printAt(margin + 20, lowerY + 204, 2, line);
     printAt(
         margin + 20, lowerY + 240, 2,
@@ -430,6 +447,8 @@ void setup() {
   inkplate.setRotation(0);
   inkplate.setTextWrap(false);
   inkplate.setFullUpdateTreshold(FULL_REFRESH_THRESHOLD);
+  inkplate.clearDisplay();
+  inkplate.display();
   drawWaitingScreen();
   Serial.println("Inkplate lake display ready");
 }
