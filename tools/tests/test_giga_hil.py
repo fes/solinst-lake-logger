@@ -3,7 +3,7 @@ import unittest
 from tools import giga_hil
 
 
-def hello(channel1=True, channel2=True, epaper=True):
+def hello(channel1=True, channel2=True):
     return {
         "hil_protocol": 1,
         "command": "HELLO",
@@ -14,7 +14,6 @@ def hello(channel1=True, channel2=True, epaper=True):
             "rs485_channel_1": channel1,
             "rs485_channel_2": channel2,
             "rs485_bridge": channel1 or channel2,
-            "epaper": epaper,
         },
     }
 
@@ -26,8 +25,6 @@ def status():
         "ok": True,
         "uptime_ms": 1234,
         "rs485_irq_active": False,
-        "epaper_busy": False,
-        "epaper_power_enabled": True,
     }
 
 
@@ -147,7 +144,7 @@ class GigaHilTests(unittest.TestCase):
                 }
             }
         )
-        output = giga_hil.report_dict(giga_hil.run_hil(transport, suite="full"))
+        output = giga_hil.report_dict(giga_hil.run_hil(transport, suite="sensors"))
         self.assertEqual(1, output["failed"])
         self.assertEqual(["HELLO"], transport.commands)
 
@@ -163,50 +160,6 @@ class GigaHilTests(unittest.TestCase):
         with self.assertRaisesRegex(giga_hil.HilFailure, "bridge is unavailable"):
             giga_hil.validate_hello(payload)
 
-    def test_full_suite_checks_epaper_busy_without_reset_by_default(self):
-        solinst = "RS485_READ 1 19200 8E1 1 4 0 2 2000"
-        weather = "RS485_READ 2 19200 8N1 2 3 500 1 2000"
-        wait = "EPAPER_WAIT_IDLE 30000"
-        transport = FakeTransport(
-            {
-                "HELLO": hello(),
-                "STATUS": status(),
-                solinst: rs485(1, [1, 2]),
-                weather: rs485(2, [3]),
-                wait: {
-                    "hil_protocol": 1,
-                    "command": "EPAPER_WAIT_IDLE",
-                    "ok": True,
-                    "idle": True,
-                    "elapsed_ms": 0,
-                },
-            }
-        )
-        output = giga_hil.report_dict(
-            giga_hil.run_hil(transport, suite="full")
-        )
-        self.assertEqual(5, output["passed"])
-        self.assertEqual(1, output["skipped"])
-        self.assertNotIn("EPAPER_RESET CONFIRM", transport.commands)
-
-    def test_epaper_reset_requires_host_safety_acknowledgement(self):
-        transport = FakeTransport({})
-        with self.assertRaisesRegex(giga_hil.HilFailure, "allow-output-tests"):
-            giga_hil.run_hil(
-                transport, suite="full", reset_epaper=True, allow_output_tests=False
-            )
-
-    def test_epaper_busy_timeout_is_rejected(self):
-        payload = {
-            "hil_protocol": 1,
-            "command": "EPAPER_WAIT_IDLE",
-            "ok": True,
-            "idle": False,
-            "elapsed_ms": 30000,
-        }
-        with self.assertRaisesRegex(giga_hil.HilFailure, "did not become idle"):
-            giga_hil.validate_epaper_wait(payload)
-
     def test_transport_timeout_becomes_failed_test(self):
         transport = FakeTransport(
             {
@@ -217,40 +170,6 @@ class GigaHilTests(unittest.TestCase):
         output = giga_hil.report_dict(giga_hil.run_hil(transport))
         self.assertEqual(1, output["failed"])
         self.assertEqual(1, output["passed"])
-
-    def test_confirmed_epaper_reset_is_validated(self):
-        wait = "EPAPER_WAIT_IDLE 30000"
-        transport = FakeTransport(
-            {
-                "HELLO": hello(channel1=False, channel2=False),
-                "STATUS": status(),
-                wait: {
-                    "hil_protocol": 1,
-                    "command": "EPAPER_WAIT_IDLE",
-                    "ok": True,
-                    "idle": True,
-                    "elapsed_ms": 0,
-                },
-                "EPAPER_RESET CONFIRM": {
-                    "hil_protocol": 1,
-                    "command": "EPAPER_RESET",
-                    "ok": True,
-                    "reset_pulsed": True,
-                },
-            }
-        )
-        output = giga_hil.report_dict(
-            giga_hil.run_hil(
-                transport,
-                suite="full",
-                reset_epaper=True,
-                allow_output_tests=True,
-            )
-        )
-        self.assertEqual(4, output["passed"])
-        self.assertEqual(2, output["skipped"])
-        self.assertIn("EPAPER_RESET CONFIRM", transport.commands)
-
 
 if __name__ == "__main__":
     unittest.main()

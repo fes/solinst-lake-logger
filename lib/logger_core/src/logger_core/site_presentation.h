@@ -57,37 +57,4 @@ struct SiteSnapshot {
 SiteHealth classifySiteHealth(const SiteSnapshot& snapshot);
 const char* siteHealthName(SiteHealth health);
 
-enum class EpaperRefreshDecision : uint8_t {
-  NONE,
-  PARTIAL,
-  FULL
-};
-
-struct EpaperRefreshState {
-  bool initialized = false;
-  uint32_t lastRefreshMs = 0;
-  uint32_t lastFullRefreshMs = 0;
-  uint32_t lastReadingRevision = 0;
-  uint32_t lastWeatherRevision = 0;
-  SiteHealth lastHealth = SiteHealth::CRITICAL;
-};
-
-EpaperRefreshDecision observeEpaperRefresh(
-    uint32_t nowMs, const SiteSnapshot& snapshot, uint32_t refreshIntervalMs,
-    uint32_t fullRefreshIntervalMs, EpaperRefreshState& state);
-
-EpaperRefreshDecision decideEpaperRefresh(
-    uint32_t nowMs, const SiteSnapshot& snapshot, uint32_t refreshIntervalMs,
-    uint32_t fullRefreshIntervalMs, const EpaperRefreshState& state);
-
-void recordEpaperRefresh(
-    uint32_t nowMs, const SiteSnapshot& snapshot,
-    EpaperRefreshDecision decision, EpaperRefreshState& state);
-
-bool epaperBusyTimedOut(
-    uint32_t nowMs, uint32_t busyStartedMs, uint32_t timeoutMs);
-
-bool minuteInDailyWindow(
-    uint16_t minuteOfDay, uint16_t startMinute, uint16_t endMinute);
-
 }  // namespace logger_core

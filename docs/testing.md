@@ -80,7 +80,7 @@ Expected: all tests pass and no warning is promoted to an error.
 
 Risk covered: Opta and Giga framework/library integration, board-profile
 selection, full production application linkage, independent Giga UART channels,
-e-paper driver integration, Wi-Fi/NTP/HTTP/upload integration, power monitoring,
+Inkplate protocol integration, Wi-Fi/NTP/HTTP/upload integration, power monitoring,
 weather polling, and profile-sized RAM backlog.
 
 ```sh
@@ -94,16 +94,15 @@ they contain deliberate placeholder configuration.
 ### 4. Automated hardware HIL firmware compiles
 
 Risk covered: Giga M7 framework compatibility, SC16IS752-over-SPI compilation,
-the shared Modbus codec, bounded command parsing, direction-control GPIO, and
-e-paper control-input scaffolding.
+the shared Modbus codec, bounded command parsing, and direction-control GPIO.
 
 ```sh
 pio run -d hil/giga_hardware_hil -e giga-hil-placeholder
 ```
 
-Expected: the environment compiles with both RS-485 channels and e-paper
-disabled. This proves only the firmware scaffold and must not be treated as a
-validated pin map or uploaded for hardware acceptance.
+Expected: the environment compiles with both RS-485 channels disabled. This
+proves only the firmware scaffold and must not be treated as a validated pin
+map or uploaded for hardware acceptance.
 
 The standalone Opta enumerator is read-only at the attached-device level. It
 detects the Wi-Fi module, scans I2C, verifies INA228 identity registers, and
@@ -153,7 +152,7 @@ python3 tools/hil_smoke.py http://192.168.1.51 \
   --expected-board-profile giga-site --timeout 10
 ```
 
-### 7. Giga dual-RS-485 and e-paper HIL
+### 7. Giga dual-RS-485 HIL
 
 The Giga HIL image is deliberately separate from production firmware and uses
 USB serial as its control plane. It has no credentials, uploads, storage
@@ -190,35 +189,6 @@ The Solinst check reads two input registers at address `0` using `8E1`. The
 weather check reads wind speed at `0x01F4` using `8N1`. A response is accepted
 only when slave, function, byte count, length, and CRC are valid. Raw received
 bytes and decoded registers are included in the report.
-
-The full standalone HIL suite verifies that the configured e-paper BUSY input
-reaches idle. Pixel rendering is exercised by the production Giga firmware,
-which uses GxEPD2's exact GDEQ0426T82/SSD1677 driver:
-
-```sh
-python3 tools/giga_hil.py /dev/cu.usbmodem101 --suite full \
-  --epaper-timeout-ms 30000 --json-output giga-full.json
-```
-
-An e-paper reset pulse is an opt-in output test and requires both safety flags:
-
-```sh
-python3 tools/giga_hil.py /dev/cu.usbmodem101 --suite full \
-  --reset-epaper --allow-output-tests
-```
-
-The firmware itself also requires the literal `CONFIRM` protocol token. The
-tracked wiring for Waveshare SKU 26376 is D10 CS, D9 DC, D8 RST, D7 BUSY,
-D11 MOSI, D13 SCK, and D6 PWR, with GH1.25 VCC connected to 3.3 V. VCC must
-match the Giga's 3.3 V I/O level; do not use 5 V for this wiring. Confirm those
-connections physically before running an output test. Automated tests can
-validate driver compilation, policy, BUSY timeouts, and refresh counters; final
-pixel appearance still requires visual inspection or a camera-based fixture.
-The combined HIL `EPAPER_PATTERN CONFIRM` command performs a full 4 MHz panel
-refresh while leaving both RS-485 channels available for immediate before/after
-Modbus reads. A full refresh should take approximately three to five seconds
-and settle to saturated black, not the gray produced by GxEPD2's forced 90 C
-waveform.
 
 ### 8. Fault injection
 

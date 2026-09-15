@@ -13,8 +13,7 @@ WiFi** that:
   - **solar input** monitor at **0x41**
 - uses the Opta status LEDs for field diagnostics
 - supports a **2.42 inch SSD1309 I2C OLED** on Opta
-- supports either the **Inkplate 6MOTION over UART** or the
-  **Waveshare 4.26-inch e-Paper HAT, SKU 26376** on Giga
+- supports the **Inkplate 6MOTION over UART** on Giga
 - reads a **DFRobot SEN0657 7-in-1 weather station** on the shared Opta bus
   when enabled, or on Giga's independent second RS-485 channel
 
@@ -48,7 +47,7 @@ The logger currently uploads:
 - `src/` - logger services for Modbus, weather, power, display, HTTP, upload, and time sync
 - `lib/logger_core/` - hardware-independent queue, Modbus, battery, and retry policies
 - `test/test_logger_core/` - native unit tests for the shared core
-- `hil/giga_hardware_hil/` - standalone Giga M7 dual-RS-485/e-paper HIL firmware
+- `hil/giga_hardware_hil/` - standalone Giga M7 dual-RS-485 HIL firmware
 - `tools/giga_hil.py` - USB-serial Giga HIL automation runner
 - `inkplate_6motion_display/` - standalone Inkplate 6MOTION STM32 firmware,
   versioned UART protocol, enhanced 1024x758 dashboard, and utility commands
@@ -101,43 +100,19 @@ The Giga profile assumes:
   receive
 - 3.3 V UART/GPIO signaling; Giga GPIO must never receive 5 V
 - the same INA228 addresses and current-path orientation as Opta
-- Waveshare SKU 26376 e-paper on `SPI1`: D10 CS, D9 DC, D8 RST, D7 BUSY,
-  D6 PWR, D11 MOSI, and D13 SCK. Power the GH1.25 connector from **3.3 V**:
-  Waveshare requires its VCC and host I/O voltage to match, and Giga GPIO is
-  3.3 V only. Do not power this connection from 5 V.
 - Inkplate 6MOTION UART: Giga D1 TX to Inkplate PB11 RX, Giga D0 RX from
   Inkplate PB10 TX, plus common GND. Both sides use 3.3 V signaling at
   115200 baud, 8N1.
 
 At startup, the Giga sends a checksummed `status` command on `Serial1`. A valid
-sequence-matched Inkplate acknowledgement selects the Inkplate backend;
-otherwise the logger initializes the legacy SPI panel. While using the legacy
-panel it periodically retries detection and switches to the Inkplate when it
-appears. `/status` reports `display_backend`, `display_link_failures`, and
-`display_last_error`. Exact `/display/status`, `/display/refresh`,
+sequence-matched acknowledgement activates the Inkplate. If the Inkplate is
+unavailable, the logger runs headless and periodically retries detection; it
+does not use `SPI1` for display traffic. `/status` reports `display_backend`,
+`display_link_failures`, and `display_last_error`. Exact `/display/status`,
+`/display/refresh`,
 `/display/clear`, `/display/pause`, `/display/resume`, `/display/reboot`, and
 `/display/sleep` routes forward maintenance commands to the Inkplate. Status
 uses GET; every command route requires POST.
-
-SKU 26376 uses the black/white `GDEQ0426T82`/SSD1677 panel and GxEPD2's
-`GxEPD2_426_GDEQ0426T82` driver. The similarly sized Waveshare four-color
-variant is incompatible. GxEPD2's default fast-full path forces the controller
-temperature register to 90 C, which selects a weak high-temperature waveform
-and leaves this panel gray at room temperature. The logger instead uses the
-SSD1677's documented `0x91` LUT-load and `0xC7` display sequence with the
-validated 25 C waveform. Standard GxEPD2 black/white polarity is used. The
-dashboard uses a 40-row/4 KB paged framebuffer and refreshes after each
-successful five-minute weather sample, with a 15-minute fallback. At 23:00
-Pacific local time it performs a full white cleaning refresh and suppresses
-dashboard updates until a full dashboard refresh at 05:00. The POSIX timezone
-and both minute-of-day boundaries are configurable in
-`include/giga_board_config.h` and account for daylight saving time. BUSY waits
-are bounded, and the panel controller is powered off between updates. Its
-footer records the UTC time represented by the completed UI refresh. On boot
-the firmware first clears the retained e-paper image, then renders a full
-dashboard after startup sensor and network checks complete. The HAT PWR line
-remains enabled so the controller RAM needed for fast partial refreshes is
-retained.
 
 ### INA228 addressing
 
@@ -233,7 +208,7 @@ If your display is strapped for a different I2C address, update the value in `in
 ## Board-specific boundaries
 
 Protocol, scheduling, upload, HTTP, backlog, weather aggregation, power
-presentation, and e-paper refresh policy are shared. Concrete RS-485 and
+presentation, and semantic site snapshots are shared. Concrete RS-485 and
 display behavior are selected by the PlatformIO environment.
 
 ### Opta-specific items in the current design

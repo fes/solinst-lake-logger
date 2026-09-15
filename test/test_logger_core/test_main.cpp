@@ -980,7 +980,7 @@ void testBoardProfilesTable() {
       {&OPTA_SOLINST_PROFILE, "opta-solinst", LoggerRole::SOLINST_LOGGER, 1,
        true, false, DisplayBehavior::WAKE_ON_DEMAND, 32},
       {&GIGA_SITE_PROFILE, "giga-site", LoggerRole::SITE_LOGGER, 2,
-       true, true, DisplayBehavior::PERSISTENT_EPAPER, 256},
+       true, true, DisplayBehavior::PERSISTENT, 256},
   };
   for (const Case& test : cases) {
     TEST_ASSERT_EQUAL_STRING(test.name, test.profile->name);
@@ -1028,97 +1028,6 @@ void testSiteHealthClassification() {
   TEST_ASSERT_EQUAL_STRING(
       "critical", logger_core::siteHealthName(
                       logger_core::SiteHealth::CRITICAL));
-}
-
-void testEpaperRefreshPolicyLifecycleAndRollover() {
-  logger_core::SiteSnapshot snapshot;
-  snapshot.health = logger_core::SiteHealth::HEALTHY;
-  snapshot.readingRevision = 1;
-  logger_core::EpaperRefreshState state;
-
-  TEST_ASSERT_EQUAL_INT(
-      static_cast<int>(logger_core::EpaperRefreshDecision::FULL),
-      static_cast<int>(logger_core::observeEpaperRefresh(
-          1000, snapshot, 900000, 86400000, state)));
-  snapshot.readingRevision = 2;
-  TEST_ASSERT_EQUAL_INT(
-      static_cast<int>(logger_core::EpaperRefreshDecision::PARTIAL),
-      static_cast<int>(logger_core::observeEpaperRefresh(
-          2000, snapshot, 900000, 86400000, state)));
-  snapshot.health = logger_core::SiteHealth::DEGRADED;
-  TEST_ASSERT_EQUAL_INT(
-      static_cast<int>(logger_core::EpaperRefreshDecision::PARTIAL),
-      static_cast<int>(logger_core::observeEpaperRefresh(
-          2001, snapshot, 900000, 86400000, state)));
-  TEST_ASSERT_EQUAL_INT(
-      static_cast<int>(logger_core::EpaperRefreshDecision::PARTIAL),
-      static_cast<int>(logger_core::observeEpaperRefresh(
-          902001, snapshot, 900000, 86400000, state)));
-
-  state.lastFullRefreshMs = UINT32_MAX - 99;
-  state.lastRefreshMs = UINT32_MAX - 99;
-  TEST_ASSERT_EQUAL_INT(
-      static_cast<int>(logger_core::EpaperRefreshDecision::FULL),
-      static_cast<int>(logger_core::observeEpaperRefresh(
-          86399900, snapshot, 900000, 86400000, state)));
-}
-
-void testEpaperRefreshDecisionCommitsOnlyAfterSuccessfulRender() {
-  logger_core::SiteSnapshot snapshot;
-  snapshot.health = logger_core::SiteHealth::HEALTHY;
-  snapshot.readingRevision = 7;
-  logger_core::EpaperRefreshState state;
-
-  const logger_core::EpaperRefreshDecision firstDecision =
-      logger_core::decideEpaperRefresh(
-          1000, snapshot, 900000, 86400000, state);
-  TEST_ASSERT_EQUAL_INT(
-      static_cast<int>(logger_core::EpaperRefreshDecision::FULL),
-      static_cast<int>(firstDecision));
-  TEST_ASSERT_FALSE(state.initialized);
-
-  TEST_ASSERT_EQUAL_INT(
-      static_cast<int>(logger_core::EpaperRefreshDecision::FULL),
-      static_cast<int>(logger_core::decideEpaperRefresh(
-          61000, snapshot, 900000, 86400000, state)));
-  logger_core::recordEpaperRefresh(61000, snapshot, firstDecision, state);
-  TEST_ASSERT_TRUE(state.initialized);
-  TEST_ASSERT_EQUAL_UINT32(61000, state.lastRefreshMs);
-  TEST_ASSERT_EQUAL_UINT32(61000, state.lastFullRefreshMs);
-  TEST_ASSERT_EQUAL_UINT32(7, state.lastReadingRevision);
-}
-
-void testEpaperRefreshesForSuccessfulWeatherRevision() {
-  logger_core::SiteSnapshot snapshot;
-  snapshot.health = logger_core::SiteHealth::HEALTHY;
-  snapshot.readingRevision = 7;
-  snapshot.weatherRevision = 1;
-  logger_core::EpaperRefreshState state;
-  logger_core::recordEpaperRefresh(
-      1000, snapshot, logger_core::EpaperRefreshDecision::FULL, state);
-
-  TEST_ASSERT_EQUAL_INT(
-      static_cast<int>(logger_core::EpaperRefreshDecision::NONE),
-      static_cast<int>(logger_core::decideEpaperRefresh(
-          2000, snapshot, 900000, 86400000, state)));
-  snapshot.weatherRevision = 2;
-  TEST_ASSERT_EQUAL_INT(
-      static_cast<int>(logger_core::EpaperRefreshDecision::PARTIAL),
-      static_cast<int>(logger_core::decideEpaperRefresh(
-          2001, snapshot, 900000, 86400000, state)));
-}
-
-void testDailyDisplayWindowSupportsBoundariesAndMidnightWrap() {
-  TEST_ASSERT_TRUE(logger_core::minuteInDailyWindow(300, 300, 1380));
-  TEST_ASSERT_TRUE(logger_core::minuteInDailyWindow(1379, 300, 1380));
-  TEST_ASSERT_FALSE(logger_core::minuteInDailyWindow(1380, 300, 1380));
-  TEST_ASSERT_FALSE(logger_core::minuteInDailyWindow(299, 300, 1380));
-
-  TEST_ASSERT_TRUE(logger_core::minuteInDailyWindow(1380, 1380, 300));
-  TEST_ASSERT_TRUE(logger_core::minuteInDailyWindow(0, 1380, 300));
-  TEST_ASSERT_FALSE(logger_core::minuteInDailyWindow(300, 1380, 300));
-  TEST_ASSERT_FALSE(logger_core::minuteInDailyWindow(100, 100, 100));
-  TEST_ASSERT_FALSE(logger_core::minuteInDailyWindow(1440, 300, 1380));
 }
 
 void testSc16is752CommandsBaudDivisorsAndFraming() {
@@ -1171,21 +1080,6 @@ void testRollingExtremaBucketsMergeExpireAndRejectInvalidValues() {
 
   history.clear();
   TEST_ASSERT_FALSE(history.extrema(40, minimum, maximum));
-}
-
-void testEpaperPolicyRejectsInvalidConfigurationAndBoundsBusyWait() {
-  logger_core::SiteSnapshot snapshot;
-  logger_core::EpaperRefreshState state;
-  TEST_ASSERT_EQUAL_INT(
-      static_cast<int>(logger_core::EpaperRefreshDecision::NONE),
-      static_cast<int>(
-          logger_core::observeEpaperRefresh(1, snapshot, 0, 100, state)));
-  TEST_ASSERT_FALSE(state.initialized);
-  TEST_ASSERT_FALSE(logger_core::epaperBusyTimedOut(1099, 1000, 100));
-  TEST_ASSERT_TRUE(logger_core::epaperBusyTimedOut(1100, 1000, 100));
-  TEST_ASSERT_TRUE(
-      logger_core::epaperBusyTimedOut(50, UINT32_MAX - 49, 100));
-  TEST_ASSERT_TRUE(logger_core::epaperBusyTimedOut(1000, 1000, 0));
 }
 
 void testHttpRequestRoutesAreExactAndQueriesAreNotAccepted() {
@@ -1608,12 +1502,7 @@ int main(int, char**) {
   RUN_TEST(testDiagnosticHistoryRejectsInvalidCapacityAndOffsets);
   RUN_TEST(testBoardProfilesTable);
   RUN_TEST(testSiteHealthClassification);
-  RUN_TEST(testEpaperRefreshPolicyLifecycleAndRollover);
-  RUN_TEST(testEpaperRefreshDecisionCommitsOnlyAfterSuccessfulRender);
-  RUN_TEST(testEpaperRefreshesForSuccessfulWeatherRevision);
-  RUN_TEST(testDailyDisplayWindowSupportsBoundariesAndMidnightWrap);
   RUN_TEST(testSc16is752CommandsBaudDivisorsAndFraming);
-  RUN_TEST(testEpaperPolicyRejectsInvalidConfigurationAndBoundsBusyWait);
   RUN_TEST(testRollingExtremaBucketsMergeExpireAndRejectInvalidValues);
   RUN_TEST(testHttpRequestRoutesAreExactAndQueriesAreNotAccepted);
   RUN_TEST(testHttpRequestRejectsMalformedLines);

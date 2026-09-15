@@ -14,14 +14,6 @@ void beginGigaPlatform() {
   pinMode(GIGA_RS485_CHANNEL2_ENABLE_PIN, OUTPUT);
   digitalWrite(GIGA_RS485_CS_PIN, HIGH);
   pinMode(GIGA_RS485_CS_PIN, OUTPUT);
-  digitalWrite(GIGA_EPAPER_CS_PIN, HIGH);
-  pinMode(GIGA_EPAPER_CS_PIN, OUTPUT);
-  if (GIGA_EPAPER_ENABLED) {
-    digitalWrite(
-        GIGA_EPAPER_POWER_PIN,
-        GIGA_EPAPER_POWER_ENABLE_LEVEL == HIGH ? LOW : HIGH);
-    pinMode(GIGA_EPAPER_POWER_PIN, OUTPUT);
-  }
   SPI1.begin();
   initUserInterface();
   Serial.println("Giga platform initialized in single-core M7 mode");
@@ -36,9 +28,6 @@ void tickGigaPlatform() {
 }
 
 bool beginGigaDisplay() {
-  if (!GIGA_EPAPER_ENABLED) {
-    Serial.println("Giga e-paper disabled; running headless");
-  }
   return initDisplay();
 }
 

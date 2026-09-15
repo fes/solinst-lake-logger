@@ -23,28 +23,21 @@ Current boundaries:
   [persistent-backlog.md](persistent-backlog.md); current firmware remains
   RAM-backed.
 - `lib/logger_core` contains hardware-independent queue, Modbus validation and
-  codec, battery-state, retry timing, site-health, rolling extrema, and e-paper
-  refresh policy used by both firmware and native tests.
+  codec, battery-state, retry timing, site-health, rolling extrema, and
+  semantic site-presentation data used by firmware and native tests.
 
-Production Giga supports Waveshare SKU 26376: the black/white 800x480
-GDEQ0426T82/SSD1677 panel through GxEPD2 on `SPI1`. It uses D10 CS, D9 DC,
-D8 RST, D7 BUSY, D6 PWR, D11 MOSI, and D13 SCK. Its GH1.25 VCC must be 3.3 V
-to match the Giga's 3.3 V GPIO; using 5 V VCC makes the HAT's translated host
-side 5 V and is not a valid Giga configuration. Display failures fail open and
-cannot block sensing or upload indefinitely. Full refreshes use the SSD1677's
-documented `0x91` LUT-load and `0xC7` display sequence with a validated 25 C
-waveform. This avoids GxEPD2's default forced 90 C waveform, which produced
-gray instead of saturated black on the deployed panel. The standard GxEPD2
-bitmap polarity is correct.
+Production Giga uses an independently programmed Inkplate 6MOTION over
+`Serial1`: D1 TX to Inkplate PB11 RX, D0 RX from Inkplate PB10 TX, and common
+ground. The protocol carries checksummed semantic snapshots and maintenance
+commands at 115200 baud. If startup detection fails, the logger remains
+headless and periodically retries without blocking sensing or upload.
 
-The Waveshare 2-CH RS485 HAT shares SPI1 with the display and uses D5 CS,
-D4 IRQ, D3 EN1, D2 EN2, and D12 MISO. Its SC16IS752 provides independent
-8E1 and 8N1 UART channels. Each device uses SPI mode 0 transactions and its
-own active-low chip select, so the other peripheral remains deselected.
-SW1 and SW2 use positions 3 and 4 ON for Half-auto/manual direction. Live
-channel testing confirmed that the HAT's EN1/EN2 inputs are active LOW at the
-Giga header. Transmit direction is held
-until the SC16IS752 reports an empty shift register.
+The Waveshare 2-CH RS485 HAT is the only production device on SPI1 and uses
+D5 CS, D4 IRQ, D3 EN1, D2 EN2, D12 MISO, D11 MOSI, and D13 SCK. Its
+SC16IS752 provides independent 8E1 and 8N1 UART channels. SW1 and SW2 use
+positions 3 and 4 ON for Half-auto/manual direction. Live channel testing
+confirmed that the HAT's EN1/EN2 inputs are active LOW at the Giga header.
+Transmit direction is held until the SC16IS752 reports an empty shift register.
 
 ## Scope split
 
@@ -61,14 +54,16 @@ The Giga setup is the path for broader site capabilities:
 - Solinst 301 on its own RS-485 channel
 - DFRobot weather station on a separate RS-485 channel
 - INA228 power monitoring
-- Waveshare 4.26 inch e-paper HAT
+- Inkplate 6MOTION UART display
 - larger local backlog
 - future direct fesLabs ingest
 - possible future persistent storage
 
 ## Display direction
 
-The e-paper display should use a single normal-operation dashboard page. We are not planning to allocate enclosure space for a physical page-rotation button in the first Giga enclosure.
+The Inkplate owns the dashboard layout and refresh waveform. The Giga sends
+semantic site snapshots rather than pixels, allowing the display firmware to
+evolve independently.
 
 ### Refresh behavior
 
@@ -76,9 +71,7 @@ The e-paper display should use a single normal-operation dashboard page. We are 
 - The page is static between refreshes.
 - If Wi-Fi is disconnected, upload health is poor, or another critical condition is active, the display can automatically switch to a diagnostics-oriented page.
 - Richer diagnostics should remain available through the local HTTP API.
-- Use paged/tiled rendering. The current logger plus 256-entry RAM backlog does
-  not have enough comfortable runtime/TLS headroom for an unnecessary 48 KB
-  full-screen monochrome framebuffer.
+- Keep framebuffer and rendering memory on the Inkplate rather than the Giga.
 
 ### Status bar
 
@@ -240,7 +233,7 @@ Examples:
 
 Possible future split, non-binding:
 
-- M7: Wi-Fi, HTTP API, uploads, e-paper rendering, high-level scheduler
+- M7: Wi-Fi, HTTP API, uploads, Inkplate transport, high-level scheduler
 - M4: RS-485 polling, INA228 reads, low-level sensor timing
 
 If that split is ever implemented, use RPC/message passing or a very narrow shared data interface.
@@ -248,7 +241,7 @@ If that split is ever implemented, use RPC/message passing or a very narrow shar
 ## Related issues
 
 - Direct fesLabs ingest endpoint: #2
-- Giga e-paper dashboard: #3
+- Giga display dashboard: #3
 - Local backlog export/clear/replay endpoints: #4
 - Reading storage abstraction and larger Giga backlog: #5
 - Multi-core readiness: #6

@@ -477,17 +477,6 @@ uint32_t displayLinkFailureCount();
 bool runDisplayCommand(const char* command, String& response);
 
 #if defined(LOGGER_BOARD_GIGA)
-bool initLegacyEpaperDisplay();
-void wakeLegacyEpaperDisplay();
-void updateLegacyEpaperDisplay();
-void sleepLegacyEpaperDisplay();
-String lastLegacyEpaperWakeRequestUtc();
-String lastLegacyEpaperRefreshUtc();
-String lastLegacyEpaperWakeRequestAge();
-String lastLegacyEpaperRefreshAge();
-uint32_t legacyEpaperRefreshCount();
-uint32_t legacyEpaperRecoveryCount();
-
 bool initInkplateUartDisplay();
 void updateInkplateUartDisplay();
 void wakeInkplateUartDisplay();

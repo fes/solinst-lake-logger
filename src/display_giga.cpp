@@ -5,118 +5,71 @@
 
 namespace {
 
-enum class GigaDisplayBackend : uint8_t {
-  LEGACY_EPAPER,
-  INKPLATE_UART
-};
+uint32_t lastDetectionAttemptMs = 0;
 
-GigaDisplayBackend activeBackend = GigaDisplayBackend::LEGACY_EPAPER;
-uint32_t lastInkplateDetectionAttemptMs = 0;
-bool legacyDisplayInitialized = false;
-
-bool shouldRetryInkplateDetection() {
-  return lastInkplateDetectionAttemptMs == 0 ||
-         millis() - lastInkplateDetectionAttemptMs >=
+bool detectionDue() {
+  return lastDetectionAttemptMs == 0 ||
+         millis() - lastDetectionAttemptMs >=
              GIGA_INKPLATE_REDETECT_INTERVAL_MS;
 }
 
-bool switchToInkplateIfPresent() {
-  lastInkplateDetectionAttemptMs = millis();
-  if (!initInkplateUartDisplay()) return false;
-  if (legacyDisplayInitialized) {
-    sleepLegacyEpaperDisplay();
-  }
-  activeBackend = GigaDisplayBackend::INKPLATE_UART;
-  return true;
-}
-
-void switchToLegacyDisplay() {
-  activeBackend = GigaDisplayBackend::LEGACY_EPAPER;
-  if (!legacyDisplayInitialized || !displayPresent) {
-    legacyDisplayInitialized = initLegacyEpaperDisplay();
-  }
+bool detectDisplay() {
+  lastDetectionAttemptMs = millis();
+  return initInkplateUartDisplay();
 }
 
 }  // namespace
 
 bool initDisplay() {
-  if (switchToInkplateIfPresent()) return true;
-  switchToLegacyDisplay();
-  return legacyDisplayInitialized;
+  if (detectDisplay()) return true;
+  displayPresent = false;
+  displayAwake = false;
+  Serial.println("No Inkplate detected; Giga display running headless");
+  return false;
 }
 
 void wakeDisplayForTimeout() {
-  if (activeBackend == GigaDisplayBackend::INKPLATE_UART) {
-    wakeInkplateUartDisplay();
-  } else {
-    wakeLegacyEpaperDisplay();
-  }
+  wakeInkplateUartDisplay();
 }
 
 void updateDisplay() {
-  if (activeBackend == GigaDisplayBackend::LEGACY_EPAPER &&
-      shouldRetryInkplateDetection() && switchToInkplateIfPresent()) {
-    updateInkplateUartDisplay();
+  if (!displayPresent) {
+    if (detectionDue()) detectDisplay();
     return;
   }
-  if (activeBackend == GigaDisplayBackend::INKPLATE_UART) {
-    updateInkplateUartDisplay();
-    if (!displayPresent) {
-      switchToLegacyDisplay();
-    }
-  } else {
-    updateLegacyEpaperDisplay();
-  }
+  updateInkplateUartDisplay();
 }
 
 void sleepDisplay() {
-  if (activeBackend == GigaDisplayBackend::INKPLATE_UART) {
-    sleepInkplateUartDisplay();
-  } else {
-    sleepLegacyEpaperDisplay();
-  }
+  if (displayPresent) sleepInkplateUartDisplay();
 }
 
 String lastDisplayWakeRequestUtc() {
-  return activeBackend == GigaDisplayBackend::INKPLATE_UART
-             ? lastInkplateWakeRequestUtc()
-             : lastLegacyEpaperWakeRequestUtc();
+  return lastInkplateWakeRequestUtc();
 }
 
 String lastDisplayRefreshUtc() {
-  return activeBackend == GigaDisplayBackend::INKPLATE_UART
-             ? lastInkplateRefreshUtc()
-             : lastLegacyEpaperRefreshUtc();
+  return lastInkplateRefreshUtc();
 }
 
 String lastDisplayWakeRequestAge() {
-  return activeBackend == GigaDisplayBackend::INKPLATE_UART
-             ? lastInkplateWakeRequestAge()
-             : lastLegacyEpaperWakeRequestAge();
+  return lastInkplateWakeRequestAge();
 }
 
 String lastDisplayRefreshAge() {
-  return activeBackend == GigaDisplayBackend::INKPLATE_UART
-             ? lastInkplateRefreshAge()
-             : lastLegacyEpaperRefreshAge();
+  return lastInkplateRefreshAge();
 }
 
 uint32_t displayRefreshCount() {
-  return activeBackend == GigaDisplayBackend::INKPLATE_UART
-             ? inkplateRefreshCount()
-             : legacyEpaperRefreshCount();
+  return inkplateRefreshCount();
 }
 
 uint32_t displayI2cRecoveryCount() {
-  return activeBackend == GigaDisplayBackend::INKPLATE_UART
-             ? 0
-             : legacyEpaperRecoveryCount();
+  return 0;
 }
 
 const char* displayBackendName() {
-  return activeBackend == GigaDisplayBackend::INKPLATE_UART
-             ? "inkplate_uart"
-             : "legacy_epaper";
+  return displayPresent ? "inkplate_uart" : "headless";
 }
 
 String displayLastError() {
@@ -128,15 +81,10 @@ uint32_t displayLinkFailureCount() {
 }
 
 bool runDisplayCommand(const char* command, String& response) {
-  if (activeBackend == GigaDisplayBackend::INKPLATE_UART) {
-    return sendInkplateCommand(command, response);
+  if (!displayPresent) {
+    response = "Inkplate UART display not detected";
+    return false;
   }
-  if (strcmp(command, "refresh") == 0) {
-    wakeLegacyEpaperDisplay();
-    response = "legacy refresh scheduled";
-    return true;
-  }
-  response = "command requires Inkplate UART display";
-  return false;
+  return sendInkplateCommand(command, response);
 }
 #endif

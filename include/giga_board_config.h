@@ -7,26 +7,6 @@ constexpr int GIGA_RS485_CHANNEL1_ENABLE_PIN = 3;
 constexpr int GIGA_RS485_CHANNEL2_ENABLE_PIN = 2;
 constexpr uint8_t GIGA_RS485_TRANSMIT_ENABLE_LEVEL = LOW;
 
-// Waveshare SKU 26376: GDEQ0426T82 / SSD1677, 800x480 black and white.
-// SPI1 uses D11 MOSI and D13 SCK on the standard Giga header.
-constexpr bool GIGA_EPAPER_ENABLED = true;
-constexpr int GIGA_EPAPER_CS_PIN = 10;
-constexpr int GIGA_EPAPER_DC_PIN = 9;
-constexpr int GIGA_EPAPER_RST_PIN = 8;
-constexpr int GIGA_EPAPER_BUSY_PIN = 7;
-constexpr int GIGA_EPAPER_POWER_PIN = 6;
-constexpr uint8_t GIGA_EPAPER_POWER_ENABLE_LEVEL = HIGH;
-constexpr uint8_t GIGA_EPAPER_BUSY_LEVEL = HIGH;
-constexpr uint32_t GIGA_EPAPER_REFRESH_INTERVAL_MS = 15UL * 60UL * 1000UL;
-constexpr uint32_t GIGA_EPAPER_FULL_REFRESH_INTERVAL_MS =
-    24UL * 60UL * 60UL * 1000UL;
-constexpr uint32_t GIGA_EPAPER_BUSY_TIMEOUT_MS = 10UL * 1000UL;
-// POSIX TZ format keeps the display window aligned with Pacific DST.
-constexpr char GIGA_EPAPER_TIMEZONE[] =
-    "PST8PDT,M3.2.0/2,M11.1.0/2";
-constexpr uint16_t GIGA_EPAPER_ACTIVE_START_MINUTE = 5U * 60U;
-constexpr uint16_t GIGA_EPAPER_QUIET_START_MINUTE = 23U * 60U;
-
 // Inkplate 6MOTION wired display on Giga Serial1: D1 TX, D0 RX.
 constexpr uint32_t GIGA_INKPLATE_BAUD = 115200;
 constexpr uint32_t GIGA_INKPLATE_DETECT_TIMEOUT_MS = 1500;

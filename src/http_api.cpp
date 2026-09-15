@@ -185,9 +185,8 @@ String statusJson() {
           String(
               ACTIVE_BOARD_PROFILE.displayBehavior == DisplayBehavior::HEADLESS
                   ? "headless"
-              : ACTIVE_BOARD_PROFILE.displayBehavior ==
-                        DisplayBehavior::PERSISTENT_EPAPER
-                  ? "persistent_epaper"
+              : ACTIVE_BOARD_PROFILE.displayBehavior == DisplayBehavior::PERSISTENT
+                  ? "persistent"
                   : "wake_on_demand") + "\",";
   body += "\"display_backend\":\"" +
           jsonEscape(String(displayBackendName())) + "\",";

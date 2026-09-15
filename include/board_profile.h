@@ -11,7 +11,7 @@ enum class LoggerRole : uint8_t {
 enum class DisplayBehavior : uint8_t {
   HEADLESS,
   WAKE_ON_DEMAND,
-  PERSISTENT_EPAPER
+  PERSISTENT
 };
 
 struct BoardProfile {
@@ -39,7 +39,7 @@ constexpr BoardProfile GIGA_SITE_PROFILE = {
     2,
     true,
     true,
-    DisplayBehavior::PERSISTENT_EPAPER,
+    DisplayBehavior::PERSISTENT,
     256};
 
 #if defined(LOGGER_BOARD_OPTA) && defined(LOGGER_BOARD_GIGA)

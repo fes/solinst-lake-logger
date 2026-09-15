@@ -1,8 +1,6 @@
 #include <Arduino.h>
-#include <GxEPD2_BW.h>
 #include <SPI.h>
 
-#include <gdeq0426t82_driver.h>
 #include <logger_core/modbus_codec.h>
 #include <sc16is752_spi.h>
 
@@ -20,9 +18,6 @@ constexpr uint32_t CONTROL_BAUD = 115200;
 constexpr size_t COMMAND_BYTES = 192;
 constexpr size_t RESPONSE_BYTES = 96;
 constexpr uint16_t MAX_HIL_REGISTERS = 32;
-constexpr uint16_t EPAPER_PAGE_HEIGHT = 40;
-constexpr uint16_t EPAPER_BLACK = GxEPD_BLACK;
-constexpr uint16_t EPAPER_WHITE = GxEPD_WHITE;
 
 char commandBuffer[COMMAND_BYTES];
 size_t commandLength = 0;
@@ -42,12 +37,6 @@ Sc16is752Spi rs485Bridge(
     HIL_RS485_CHANNEL1_ENABLE_PIN, HIL_RS485_CHANNEL2_ENABLE_PIN,
     HIL_RS485_TRANSMIT_ENABLE_LEVEL);
 bool rs485BridgePresent = false;
-GxEPD2_BW<Gdeq0426t82Driver, EPAPER_PAGE_HEIGHT> epaper(
-    Gdeq0426t82Driver(
-        HIL_EPAPER_CS_PIN, HIL_EPAPER_DC_PIN, HIL_EPAPER_RST_PIN,
-        HIL_EPAPER_BUSY_PIN));
-bool epaperInitialized = false;
-bool partialPatternBlack = false;
 
 void printJsonString(const char* value) {
   Serial.print('"');
@@ -116,8 +105,6 @@ void handleHello() {
   Serial.print(channels[1].enabled ? "true" : "false");
   Serial.print(",\"rs485_bridge\":");
   Serial.print(rs485BridgePresent ? "true" : "false");
-  Serial.print(",\"epaper\":");
-  Serial.print(HIL_EPAPER_ENABLED ? "true" : "false");
   Serial.println("}}");
 }
 
@@ -145,26 +132,7 @@ void handleStatus() {
         rs485BridgePresent ? rs485Bridge.lineStatus(channel) : 0);
     Serial.print('}');
   }
-  Serial.print(']');
-  Serial.print(",\"epaper_busy\":");
-  if (!HIL_EPAPER_ENABLED || HIL_EPAPER_BUSY_PIN < 0) {
-    Serial.print("null");
-  } else {
-    Serial.print(digitalRead(HIL_EPAPER_BUSY_PIN) == HIL_EPAPER_BUSY_LEVEL
-                     ? "true"
-                     : "false");
-  }
-  Serial.print(",\"epaper_power_enabled\":");
-  if (!HIL_EPAPER_ENABLED || HIL_EPAPER_POWER_PIN < 0) {
-    Serial.print("null");
-  } else {
-    Serial.print(
-        digitalRead(HIL_EPAPER_POWER_PIN) ==
-                HIL_EPAPER_POWER_ENABLE_LEVEL
-            ? "true"
-            : "false");
-  }
-  Serial.println("}");
+  Serial.println("]}");
 }
 
 void handleRs485Read(char* save) {
@@ -306,139 +274,6 @@ void handleRs485Loopback(char* save) {
   Serial.println("}");
 }
 
-void handleEpaperWait(char* save) {
-  const char* command = "EPAPER_WAIT_IDLE";
-  char* timeoutText = strtok_r(nullptr, " ", &save);
-  uint32_t timeoutMs = 0;
-  if (timeoutText == nullptr || strtok_r(nullptr, " ", &save) != nullptr ||
-      !parseUnsigned(timeoutText, 1, 120000, timeoutMs)) {
-    printError(command, "usage: EPAPER_WAIT_IDLE timeout_ms");
-    return;
-  }
-  if (!HIL_EPAPER_ENABLED || HIL_EPAPER_BUSY_PIN < 0) {
-    printError(command, "e-paper busy input disabled in hil_config.h");
-    return;
-  }
-
-  const uint32_t startedMs = millis();
-  while (digitalRead(HIL_EPAPER_BUSY_PIN) == HIL_EPAPER_BUSY_LEVEL &&
-         millis() - startedMs < timeoutMs) {
-    delay(1);
-  }
-  const bool idle =
-      digitalRead(HIL_EPAPER_BUSY_PIN) != HIL_EPAPER_BUSY_LEVEL;
-  beginResponse(command, idle);
-  Serial.print(",\"idle\":");
-  Serial.print(idle ? "true" : "false");
-  Serial.print(",\"elapsed_ms\":");
-  Serial.print(millis() - startedMs);
-  if (!idle) Serial.print(",\"error\":\"e-paper busy timeout\"");
-  Serial.println("}");
-}
-
-void handleEpaperReset(char* save) {
-  const char* command = "EPAPER_RESET";
-  char* confirmation = strtok_r(nullptr, " ", &save);
-  if (confirmation == nullptr || strcmp(confirmation, "CONFIRM") != 0 ||
-      strtok_r(nullptr, " ", &save) != nullptr) {
-    printError(command, "explicit CONFIRM token required");
-    return;
-  }
-  if (!HIL_EPAPER_ENABLED || HIL_EPAPER_RST_PIN < 0) {
-    printError(command, "e-paper reset output disabled in hil_config.h");
-    return;
-  }
-  digitalWrite(HIL_EPAPER_RST_PIN, LOW);
-  delay(20);
-  digitalWrite(HIL_EPAPER_RST_PIN, HIGH);
-  delay(20);
-  beginResponse(command, true);
-  Serial.println(",\"reset_pulsed\":true}");
-}
-
-void handleEpaperPattern(char* save) {
-  const char* command = "EPAPER_PATTERN";
-  char* confirmation = strtok_r(nullptr, " ", &save);
-  if (confirmation == nullptr || strcmp(confirmation, "CONFIRM") != 0 ||
-      strtok_r(nullptr, " ", &save) != nullptr) {
-    printError(command, "explicit CONFIRM token required");
-    return;
-  }
-  if (!HIL_EPAPER_ENABLED) {
-    printError(command, "e-paper disabled in hil_config.h");
-    return;
-  }
-
-  const uint32_t startedMs = millis();
-  if (!epaperInitialized) {
-    epaper.epd2.selectSPI(
-        SPI1, SPISettings(4000000, MSBFIRST, SPI_MODE0));
-    epaper.init(0, true, 10, false);
-    epaper.setRotation(0);
-    epaper.setTextWrap(false);
-    epaperInitialized = true;
-  }
-
-  epaper.setFullWindow();
-  epaper.firstPage();
-  do {
-    epaper.fillScreen(EPAPER_BLACK);
-    epaper.setTextColor(EPAPER_WHITE);
-    epaper.setTextSize(5);
-    epaper.setCursor(150, 250);
-    epaper.print("GIGA EPAPER TEST");
-  } while (epaper.nextPage());
-  epaper.powerOff();
-
-  const bool idle =
-      digitalRead(HIL_EPAPER_BUSY_PIN) != HIL_EPAPER_BUSY_LEVEL;
-  beginResponse(command, idle);
-  Serial.print(",\"idle\":");
-  Serial.print(idle ? "true" : "false");
-  Serial.print(",\"elapsed_ms\":");
-  Serial.print(millis() - startedMs);
-  if (!idle) Serial.print(",\"error\":\"e-paper busy after refresh\"");
-  Serial.println("}");
-}
-
-void handleEpaperPartialPattern(char* save) {
-  const char* command = "EPAPER_PARTIAL_PATTERN";
-  char* confirmation = strtok_r(nullptr, " ", &save);
-  if (confirmation == nullptr || strcmp(confirmation, "CONFIRM") != 0 ||
-      strtok_r(nullptr, " ", &save) != nullptr) {
-    printError(command, "explicit CONFIRM token required");
-    return;
-  }
-  if (!HIL_EPAPER_ENABLED || !epaperInitialized) {
-    printError(command, "run EPAPER_PATTERN CONFIRM first");
-    return;
-  }
-
-  partialPatternBlack = !partialPatternBlack;
-  const uint32_t startedMs = millis();
-  epaper.setPartialWindow(0, 0, epaper.width(), epaper.height());
-  epaper.firstPage();
-  do {
-    epaper.fillScreen(partialPatternBlack ? EPAPER_BLACK : EPAPER_WHITE);
-    epaper.setTextColor(
-        partialPatternBlack ? EPAPER_WHITE : EPAPER_BLACK);
-    epaper.setTextSize(5);
-    epaper.setCursor(110, 250);
-    epaper.print("PARTIAL REFRESH TEST");
-  } while (epaper.nextPage());
-  epaper.powerOff();
-
-  const bool idle =
-      digitalRead(HIL_EPAPER_BUSY_PIN) != HIL_EPAPER_BUSY_LEVEL;
-  beginResponse(command, idle);
-  Serial.print(",\"idle\":");
-  Serial.print(idle ? "true" : "false");
-  Serial.print(",\"elapsed_ms\":");
-  Serial.print(millis() - startedMs);
-  if (!idle) Serial.print(",\"error\":\"e-paper busy after partial refresh\"");
-  Serial.println("}");
-}
-
 void handleCommand(char* line) {
   char* save = nullptr;
   char* command = strtok_r(line, " ", &save);
@@ -452,14 +287,6 @@ void handleCommand(char* line) {
     handleRs485Read(save);
   } else if (strcmp(command, "RS485_LOOPBACK") == 0) {
     handleRs485Loopback(save);
-  } else if (strcmp(command, "EPAPER_WAIT_IDLE") == 0) {
-    handleEpaperWait(save);
-  } else if (strcmp(command, "EPAPER_RESET") == 0) {
-    handleEpaperReset(save);
-  } else if (strcmp(command, "EPAPER_PATTERN") == 0) {
-    handleEpaperPattern(save);
-  } else if (strcmp(command, "EPAPER_PARTIAL_PATTERN") == 0) {
-    handleEpaperPartialPattern(save);
   } else {
     printError(command, "unknown or malformed command");
   }
@@ -479,7 +306,6 @@ void setup() {
   while (!Serial && millis() - waitStartedMs < 5000U) delay(10);
 
   configureOutputPin(HIL_RS485_CS_PIN, HIGH);
-  configureOutputPin(HIL_EPAPER_CS_PIN, HIGH);
   const uint8_t rs485ReceiveLevel =
       HIL_RS485_TRANSMIT_ENABLE_LEVEL == HIGH ? LOW : HIGH;
   configureOutputPin(
@@ -489,25 +315,6 @@ void setup() {
   if (channels[0].enabled || channels[1].enabled) {
     rs485BridgePresent = rs485Bridge.begin();
   }
-  if (HIL_EPAPER_ENABLED) {
-    configureOutputPin(HIL_EPAPER_DC_PIN, LOW);
-    configureOutputPin(HIL_EPAPER_RST_PIN, HIGH);
-    configureOutputPin(
-        HIL_EPAPER_POWER_PIN,
-        HIL_EPAPER_POWER_ENABLE_LEVEL == HIGH ? LOW : HIGH);
-    delay(100);
-    digitalWrite(
-        HIL_EPAPER_POWER_PIN, HIL_EPAPER_POWER_ENABLE_LEVEL);
-    delay(100);
-    if (HIL_EPAPER_BUSY_PIN >= 0) {
-      pinMode(HIL_EPAPER_BUSY_PIN, INPUT_PULLDOWN);
-    }
-  } else {
-    configureOutputPin(
-        HIL_EPAPER_POWER_PIN,
-        HIL_EPAPER_POWER_ENABLE_LEVEL == HIGH ? LOW : HIGH);
-  }
-
   Serial.println("{\"hil_protocol\":1,\"event\":\"ready\"}");
 }
 

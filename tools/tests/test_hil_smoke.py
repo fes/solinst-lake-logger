@@ -190,27 +190,24 @@ class HilSmokeTests(unittest.TestCase):
             {
                 "board_profile": "giga-site",
                 "rs485_channel_count": 2,
-                "display_behavior": "persistent_epaper",
+                "display_behavior": "persistent",
             }
         )
         hil_smoke.validate_status(
             payload, expected_board_profile="giga-site"
         )
 
-    def test_status_rejects_missing_configured_giga_display(self):
+    def test_status_allows_headless_giga_while_inkplate_is_absent(self):
         payload = valid_status()
         payload.update(
             {
                 "board_profile": "giga-site",
                 "rs485_channel_count": 2,
-                "display_behavior": "persistent_epaper",
+                "display_behavior": "persistent",
                 "display_present": False,
             }
         )
-        with self.assertRaisesRegex(
-            hil_smoke.SmokeFailure, "must report display_present"
-        ):
-            hil_smoke.validate_status(payload)
+        hil_smoke.validate_status(payload)
 
     def test_status_rejects_incomplete_permanent_upload_diagnostics(self):
         payload = valid_status()

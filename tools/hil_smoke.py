@@ -140,7 +140,7 @@ def validate_status(payload, expected_device_id=None, expected_board_profile=Non
     expected_display = (
         "wake_on_demand"
         if board_profile == "opta-solinst"
-        else "persistent_epaper"
+        else "persistent"
     )
     if display_behavior != expected_display:
         _fail(endpoint, "display_behavior does not match board_profile")
@@ -149,8 +149,6 @@ def validate_status(payload, expected_device_id=None, expected_board_profile=Non
     _require_integer(payload, "display_refresh_count", endpoint, minimum=0)
     _require_integer(payload, "display_recovery_count", endpoint, minimum=0)
     _require_string(payload, "last_display_refresh_age", endpoint)
-    if board_profile == "giga-site" and not display_present:
-        _fail(endpoint, "configured Giga e-paper must report display_present")
     if _require_string(payload, "site_health", endpoint) not in (
         "healthy",
         "degraded",

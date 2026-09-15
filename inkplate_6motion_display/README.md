@@ -72,9 +72,9 @@ Example body before adding its CRC:
 1|42|SNAPSHOT|device=silverlake-412-streeter;timestamp=2026-09-14T19:00:00Z;health=HEALTHY;clock=1;wifi=1;rssi=-54;ip=10.2.12.247;sensor_found=1;modbus_id=1;serial=2216073;water_valid=1;water_level_m=0.440;water_temp_c=16.84;probe_age_s=20;weather_enabled=1;weather_present=1;weather_valid=1;air_temp_c=15.4;humidity_pct=80;pressure_hpa=1002;wind_m_s=0.7;wind_deg=180;rain_valid=1;rain_mm=0.2;battery_valid=1;battery_v=13.39;battery_pct=99;battery_extrema_valid=1;battery_min_v=13.10;battery_max_v=13.58;solar_valid=1;solar_v=15.18;solar_a=0.28;solar_w=4.24;solar_charging=1;backlog=0;upload_failures=0;upload_age_s=20
 ```
 
-The GIGA probes the Inkplate at startup, falls back to its SPI e-paper panel if
-the UART probe fails, and periodically retries detection while fallback is
-active. Its HTTP API exposes the same maintenance commands at
+The GIGA probes the Inkplate at startup, runs headless if the UART probe fails,
+and periodically retries detection. Its HTTP API exposes the same maintenance
+commands at
 `/display/<command>` using POST (with GET reserved for `/display/status`) and
 reports the selected backend and link diagnostics from `/status`.
 
