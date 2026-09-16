@@ -72,6 +72,48 @@ as context for the hardware proposals below.
 
 ## 1. Waveshare isolated RS-485 converters (planned hardware swap)
 
+**Update -- there is a better option than a separate converter module.**
+Waveshare also sells a **2-Channel Isolated RS485 Expansion HAT**
+(SC16IS752 + SP3485 solution) that is functionally a drop-in replacement
+for the exact HAT already in the box, with isolation and protection added
+onto the same board:
+
+- Same SC16IS752 dual-UART bridge chip, same SPI interface -- `lib/sc16is752`
+  and all of the health/recovery/self-test firmware landed this session
+  keep working completely unchanged. This is not "Option A vs Option B"
+  below; it *is* Option A, just with isolation built in at the source
+  instead of bolted on with separate converter modules.
+- Full galvanic isolation: **B0505LS isolated DC-DC** (isolates the RS-485
+  side's power) plus an **ADUM1412 digital isolator** (isolates the SPI/
+  logic-level signals) between the Giga/SC16IS752 side and the SP3485
+  transceiver/field-wiring side. This solves the ground-potential-shift
+  theory the same way the standalone converters would.
+- **SMAJ12CA TVS diode array** for surge/lightning protection, plus a
+  resettable fuse for over-current/over-voltage -- comparable protection
+  to the standalone converter's 600W/15kV ESD spec.
+- Same physical DIP-switch-selectable 120-ohm termination and TX/RX mode
+  selection as the current HAT, so no change to the existing wiring
+  conventions noted in `docs/giga-site-logger-architecture-notes.md`.
+- It's a Raspberry Pi 40-pin HAT form factor, same as the current board;
+  since the current board is already wired to the Giga via breakout SPI
+  pins rather than the Pi header, the same approach should carry over, but
+  physically confirm pin compatibility (CS/IRQ/EN pin locations) against
+  the current board before ordering.
+
+**Recommendation: prefer this isolated HAT over separate discrete
+converter modules.** It gets the galvanic isolation and surge protection
+we want, with zero firmware changes and zero UART budget impact (still
+SPI-based), whereas the standalone TTL-to-RS485 converters below either
+keep the SC16IS752 (redundant with what this HAT already provides) or
+remove it and consume the Giga's scarce native UARTs (see the UART budget
+problem under Option B below, which this isolated HAT avoids entirely by
+not needing native UARTs at all).
+
+The discrete-converter research below is kept for reference in case the
+isolated HAT turns out not to be physically compatible with the current
+wiring, or a future design wants to move off SPI/SC16IS752 entirely for
+other reasons.
+
 Researched: the **Waveshare Rail-Mount TTL-to-RS485 Isolated Converter**
 (multi-isolation, SKU 23778 family) is electrically "dumb" -- there is no
 SPI/I2C register interface to query, unlike the SC16IS752. What it provides
