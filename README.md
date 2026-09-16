@@ -787,6 +787,11 @@ loss. Persistent storage is a gated design only; see
 Normal firmware does not initialize, format, erase, or write QSPI/internal flash
 for backlog storage.
 
+Pending hardware changes (isolated RS-485 converters, MPPT charge-controller
+rewiring, individually switched peripheral power) are evaluated offline in
+[Hardware hardening recommendations](docs/hardware-hardening-recommendations.md);
+nothing there is scheduled or required yet.
+
 ### Current behavior
 
 - transient results use up to `POST_RETRIES`; all `2xx` responses are accepted
