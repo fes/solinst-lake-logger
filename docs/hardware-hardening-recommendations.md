@@ -110,7 +110,20 @@ instead:
   primitives; would need new code reading the Giga's own UART peripheral
   error flags (mbed exposes framing/overrun status) to get equivalent
   visibility. More firmware work, but a structurally simpler/more robust
-  design longer-term.
+  design longer-term. **UART budget problem:** the Giga R1 only exposes
+  3 hardware UARTs total (`Serial1`/`Serial2`/`Serial3` -- `Serial` itself
+  is native USB, not a header UART), and `Serial1` is already committed to
+  the Inkplate display link. That leaves only 2 free UARTs. Using both for
+  Solinst + weather RS-485 leaves **zero** free for the Victron VE.Direct
+  link (section 3), which also needs a dedicated UART. Option B is only
+  viable alongside VE.Direct if a third UART source is added some other
+  way (e.g. a second small UART-over-SPI/I2C bridge chip just for
+  VE.Direct, similar in spirit to the SC16IS752 it would be replacing
+  elsewhere), which adds back complexity in a different place.
+
+**This UART constraint is a real argument for Option A**: keeping the
+SC16IS752 for both RS-485 channels leaves both native UARTs free -- one
+for VE.Direct, one spare -- with no extra bridge chip needed anywhere.
 
 **Optional add-on either way:** rather than one INA219/INA228 per rail,
 a single **TI INA3221** covers this in one part -- it's a 3-channel
@@ -126,10 +139,8 @@ energy/charge accumulation register, so any Wh/Ah totals would still need
 to be computed in firmware from repeated voltage x current samples.
 
 **Open questions before committing to a wiring plan:**
-- Option A or B?
-- If B, how many free UART-capable pin pairs does the Giga have available,
-  and do any conflict with the existing Inkplate `Serial1` link or other
-  peripherals?
+- Option A or B? Given the UART budget above, Option A is the pragmatic
+  default unless there's a strong reason to eliminate the shared bridge.
 - Is per-channel current-sensing worth the added parts/complexity for this
   deployment, or is that over-engineering for a single dock?
 - If added, one INA3221 (Solinst converter + weather converter, one channel
