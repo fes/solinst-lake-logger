@@ -50,6 +50,21 @@ class GigaRs485Channel final : public Rs485Channel {
 
   int read() override { return bridge_.read(channel_); }
 
+  Rs485ChannelHealth health() override {
+    // LSR error bits (overrun/parity/framing/break) are cleared on read,
+    // so this reflects whatever accumulated since the last time anything
+    // (a transaction or a prior health() call) read the register.
+    Rs485ChannelHealth result;
+    result.supported = true;
+    const uint8_t lsr = bridge_.lineStatus(channel_);
+    result.lineStatusRegister = lsr;
+    result.overrunError = (lsr & 0x02) != 0;
+    result.parityError = (lsr & 0x04) != 0;
+    result.framingError = (lsr & 0x08) != 0;
+    result.breakDetected = (lsr & 0x10) != 0;
+    return result;
+  }
+
  private:
   const char* channelName_;
   Sc16is752Spi& bridge_;

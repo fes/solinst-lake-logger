@@ -340,6 +340,20 @@ struct ModbusFailureDiagnostic {
   uint16_t startRegister = 0;
   uint16_t quantity = 0;
   uint16_t responseLength = 0;
+  // Power snapshot at the moment of failure, so a run of failures can be
+  // correlated against a brownout/low-solar condition (e.g. during an
+  // extended rainy/overcast stretch) without cross-referencing separate
+  // logs after the fact.
+  bool batteryVoltageValid = false;
+  float batteryOutputVoltageV = NAN;
+  float batteryChargePct = NAN;
+  bool solarVoltageValid = false;
+  float solarInputVoltageV = NAN;
+  bool solarChargingNow = false;
+  // RS-485 bridge/UART health at the moment of failure -- distinguishes a
+  // bridge/line fault (framing/parity/overrun/break) from a downstream
+  // sensor simply not answering.
+  Rs485ChannelHealth bridgeHealth;
 };
 
 extern ModbusFailureDiagnostic
@@ -371,10 +385,10 @@ String nowUtcString();
 bool shouldLogNow();
 void kickSystemWatchdog();
 const char* lastSystemResetReasonName();
-void recordModbusFailure(const char* channel, uint8_t slaveId,
-                         uint8_t functionCode, uint16_t startRegister,
-                         uint16_t quantity, const char* reason,
-                         size_t responseLength);
+void recordModbusFailure(const char* channelName, Rs485Channel& channel,
+                         uint8_t slaveId, uint8_t functionCode,
+                         uint16_t startRegister, uint16_t quantity,
+                         const char* reason, size_t responseLength);
 
 bool initPowerMonitors();
 void pollPowerMonitorsIfDue(bool force = false);

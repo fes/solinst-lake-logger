@@ -249,10 +249,69 @@ String statusJson() {
     body += "\"quantity\":" + String(diagnostic.quantity) + ",";
     body += "\"response_length\":" + String(diagnostic.responseLength) + ",";
     body += "\"reason\":\"" +
-            jsonEscape(String(diagnostic.reason)) + "\"";
+            jsonEscape(String(diagnostic.reason)) + "\",";
+    body += "\"battery_output_voltage_v\":" +
+            (diagnostic.batteryVoltageValid
+                 ? String(diagnostic.batteryOutputVoltageV, 3)
+                 : String("null")) +
+            ",";
+    body += "\"battery_charge_level_pct_approx\":" +
+            (diagnostic.batteryVoltageValid
+                 ? String(diagnostic.batteryChargePct, 1)
+                 : String("null")) +
+            ",";
+    body += "\"solar_input_voltage_v\":" +
+            (diagnostic.solarVoltageValid
+                 ? String(diagnostic.solarInputVoltageV, 3)
+                 : String("null")) +
+            ",";
+    body += "\"solar_charging_battery\":" +
+            String(diagnostic.solarChargingNow ? "true" : "false") + ",";
+    body += "\"bridge_health_supported\":" +
+            String(diagnostic.bridgeHealth.supported ? "true" : "false") + ",";
+    body += "\"bridge_line_status_register\":" +
+            String(diagnostic.bridgeHealth.lineStatusRegister) + ",";
+    body += "\"bridge_overrun_error\":" +
+            String(diagnostic.bridgeHealth.overrunError ? "true" : "false") + ",";
+    body += "\"bridge_parity_error\":" +
+            String(diagnostic.bridgeHealth.parityError ? "true" : "false") + ",";
+    body += "\"bridge_framing_error\":" +
+            String(diagnostic.bridgeHealth.framingError ? "true" : "false") + ",";
+    body += "\"bridge_break_detected\":" +
+            String(diagnostic.bridgeHealth.breakDetected ? "true" : "false");
     body += "}";
   }
   body += "],";
+  {
+    const Rs485ChannelHealth h = solinstRs485Channel().health();
+    body += "\"rs485_solinst_bridge_health_supported\":" +
+            String(h.supported ? "true" : "false") + ",";
+    body += "\"rs485_solinst_bridge_line_status_register\":" +
+            String(h.lineStatusRegister) + ",";
+    body += "\"rs485_solinst_bridge_overrun_error\":" +
+            String(h.overrunError ? "true" : "false") + ",";
+    body += "\"rs485_solinst_bridge_parity_error\":" +
+            String(h.parityError ? "true" : "false") + ",";
+    body += "\"rs485_solinst_bridge_framing_error\":" +
+            String(h.framingError ? "true" : "false") + ",";
+    body += "\"rs485_solinst_bridge_break_detected\":" +
+            String(h.breakDetected ? "true" : "false") + ",";
+  }
+  {
+    const Rs485ChannelHealth h = weatherRs485Channel().health();
+    body += "\"rs485_weather_bridge_health_supported\":" +
+            String(h.supported ? "true" : "false") + ",";
+    body += "\"rs485_weather_bridge_line_status_register\":" +
+            String(h.lineStatusRegister) + ",";
+    body += "\"rs485_weather_bridge_overrun_error\":" +
+            String(h.overrunError ? "true" : "false") + ",";
+    body += "\"rs485_weather_bridge_parity_error\":" +
+            String(h.parityError ? "true" : "false") + ",";
+    body += "\"rs485_weather_bridge_framing_error\":" +
+            String(h.framingError ? "true" : "false") + ",";
+    body += "\"rs485_weather_bridge_break_detected\":" +
+            String(h.breakDetected ? "true" : "false") + ",";
+  }
   body += "\"sensor_found\":" + String(detectedSensorId != 0 ? "true" : "false") + ",";
   body += "\"modbus_id\":" + String(detectedSensorId) + ",";
   body += "\"configured_fixed_modbus_id_enabled\":" + String(WLTS_USE_FIXED_MODBUS_ID ? "true" : "false") + ",";

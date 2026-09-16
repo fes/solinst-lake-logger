@@ -125,8 +125,8 @@ bool readWeatherHoldingRegistersWithRetry(uint8_t slaveId, uint16_t startReg, ui
     }
   }
 
-  recordModbusFailure("weather", slaveId, 0x03, startReg, quantity,
-                      lastError, lastResponseLength);
+  recordModbusFailure("weather", weatherRs485Channel(), slaveId, 0x03,
+                      startReg, quantity, lastError, lastResponseLength);
   lastWeatherError = lastError ? String(lastError) : String("weather read failed");
   return false;
 }

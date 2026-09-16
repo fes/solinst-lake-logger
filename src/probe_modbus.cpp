@@ -236,8 +236,8 @@ bool readInputRegistersWithRetry(uint8_t slaveId, uint16_t startReg, uint16_t qu
     }
   }
 
-  recordModbusFailure("solinst", slaveId, 0x04, startReg, quantity,
-                      lastError, lastResponseLength);
+  recordModbusFailure("solinst", solinstRs485Channel(), slaveId, 0x04,
+                      startReg, quantity, lastError, lastResponseLength);
   return false;
 }
 
