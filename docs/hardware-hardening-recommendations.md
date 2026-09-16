@@ -144,8 +144,43 @@ sufficient for the actual problem.
 
 ## 3. MPPT charge controller: load-isolation breaks our charge-state math
 
-Flagged as a real issue, not yet fixed (needs hardware wiring details
-first). Current logic (`lib/logger_core/src/domain_logic.cpp`):
+**Model confirmed: Victron Energy SmartSolar MPPT 75/15 (12/24V, 15A).**
+Good news -- no need to change models. This unit has both a load output
+terminal (so the isolated-load concern below is real and applies) and a
+**VE.Direct port**, which solves the problem better than any voltage/current
+heuristic could:
+
+- VE.Direct is a 3.3V TTL UART, 19200 baud 8N1, distinct from Modbus but
+  just as easy to consume from firmware. About once per second the
+  controller streams a plain-text frame of `LABEL\tvalue` lines terminated
+  by a checksum, e.g. `V` (battery voltage, mV), `I` (battery current, mA,
+  signed), `VPV`/`PPV` (panel voltage/power), `CS` (charge state: e.g.
+  0=Off, 3=Bulk, 4=Absorption, 5=Float, 7=Equalize, 2=Fault), and an error
+  code field. Full frame spec: Victron's public
+  [VE.Direct Protocol PDF](https://www.victronenergy.com/upload/documents/VE.Direct-Protocol.pdf).
+  Existing open-source Arduino parsers (e.g. `winginitau/VictronVEDirectArduino`)
+  are usable as a reference/starting point.
+- Victron does **not** put Modbus on the charge controller itself --
+  Modbus TCP is only exposed via a separate Cerbo/Venus GX gateway device,
+  which would be a needless extra box and internet/GX ecosystem dependency
+  for this single-controller deployment. VE.Direct is the right interface
+  here, not a reason to look at a different model.
+- Practically: wire the controller's VE.Direct TX (and ideally RX, for
+  future write access e.g. remote on/off) into a free Giga UART. Check
+  whether the Giga's UART pins tolerate 3.3V-to-3.3V directly (they should,
+  since the Giga itself is 3.3V logic) before skipping a level shifter --
+  confirm against both the Giga R1 and VE.Direct datasheets rather than
+  assuming.
+- Once parsed, `CS` and the error field should **replace**
+  `batteryChargePercent()`/`solarCharging()` outright for any system that
+  has this controller, rather than trying to patch the voltage-based
+  heuristics -- the controller already knows its own true charge state and
+  our guesses can only be worse than that.
+
+The load-output topology question below still matters for the physical
+INA228 wiring, independent of adding VE.Direct:
+
+Current logic (`lib/logger_core/src/domain_logic.cpp`):
 
 ```cpp
 float batteryChargePercent(bool voltageValid, float voltageV) {
@@ -174,16 +209,15 @@ the battery), that breaks down:
 **What's needed to fix this properly:**
 1. Confirm exactly where each existing INA228 shunt sits relative to the
    controller's PV / BATT / LOAD ports.
-2. Identify the MPPT controller model. Many mid-range MPPT controllers
-   (Victron SmartSolar/VE.Direct, Renogy RS232/Modbus, etc.) expose real
-   charge-state telemetry directly -- if this one does, polling that is a
-   far more reliable source of truth than inferring it from raw
-   voltage/current, and would let us retire the current heuristics
-   entirely rather than patch them.
-3. If no telemetry interface exists, consider adding a third INA228 wired
-   directly at the true battery terminals (separate from whichever port the
-   existing "battery_output" monitor is actually on), so charge/discharge
-   current and true terminal voltage are both unambiguous.
+2. ~~Identify the MPPT controller model~~ -- done: Victron SmartSolar
+   MPPT 75/15, which has VE.Direct telemetry (see above). Recommendation
+   is to add the VE.Direct parser and use its `CS`/error fields as the
+   authoritative charge state, rather than adding a third INA228 purely to
+   patch the voltage heuristic.
+3. A third INA228 at the true battery terminals is still worth adding only
+   if we specifically want independent current draw of load vs. controller
+   for power-budgeting/diagnostics beyond charge state itself -- optional,
+   not required once VE.Direct is in place.
 
 ## 4. Individually switched power for converters/controllers/displays/sensors
 
