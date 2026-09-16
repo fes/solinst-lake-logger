@@ -112,11 +112,18 @@ instead:
   visibility. More firmware work, but a structurally simpler/more robust
   design longer-term.
 
-**Optional add-on either way:** a small INA219/INA228 (same part family
-already used for battery/solar) on each converter's isolated power feed,
-so firmware can directly confirm "the converter is powered and drawing a
-sane current" rather than only inferring health from downstream Modbus
-symptoms.
+**Optional add-on either way:** rather than one INA219/INA228 per rail,
+a single **TI INA3221** covers this in one part -- it's a 3-channel
+high-side current/voltage monitor on one I2C chip, each channel
+independently 0-26V with its own programmable critical/warning alert
+output, and 4 selectable I2C addresses if more than 3 channels are ever
+needed (stack a second chip). One INA3221 could cover both converters
+plus a spare channel (e.g. the display) in a single part, instead of
+three separate INA219/228 boards. Tradeoff versus the INA228 already used
+for battery/solar: 13-bit resolution (fine for "is this rail alive and
+drawing a sane current," not as precise for metering) and no built-in
+energy/charge accumulation register, so any Wh/Ah totals would still need
+to be computed in firmware from repeated voltage x current samples.
 
 **Open questions before committing to a wiring plan:**
 - Option A or B?
@@ -125,6 +132,9 @@ symptoms.
   peripherals?
 - Is per-channel current-sensing worth the added parts/complexity for this
   deployment, or is that over-engineering for a single dock?
+- If added, one INA3221 (Solinst converter + weather converter, one channel
+  spare) is likely enough for this; a second chip (different I2C address)
+  would only be needed if switched power (section 4) grows beyond 3 rails.
 
 ## 2. Grounding: decision made -- no earth/lake-bed ground
 
