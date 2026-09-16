@@ -33,6 +33,29 @@ class Rs485Channel {
   virtual int available() = 0;
   virtual int read() = 0;
   virtual Rs485ChannelHealth health() { return Rs485ChannelHealth{}; }
+
+  // Attempt an automatic hardware-level recovery after repeated failures
+  // on this channel (e.g. a full SC16IS752 SPI bridge re-init, including
+  // its scratch-register self-test on both channels). This is deliberately
+  // heavier-weight than the per-transaction begin()/configure() reset, and
+  // is meant to be tried only after several consecutive failures, since it
+  // can briefly disrupt the *other* channel sharing the same bridge chip.
+  // Returns true if the recovery's own self-check passed. Boards with
+  // nothing extra to reset (e.g. Opta's built-in RS-485 transceiver)
+  // report false/not-supported; callers should treat that as "no
+  // additional recovery available" rather than a failure needing escalation.
+  virtual bool attemptRecovery() { return false; }
+
+  // On-demand internal loopback self-test: writes known bytes and reads
+  // them back over the bridge's UART core without touching the physical
+  // RS-485 pair, to distinguish "the bridge/UART itself is broken" from
+  // "the downstream sensor/cable is the problem" -- callable manually
+  // (e.g. from the mobile diagnostics app) without waiting for a real
+  // Modbus failure to happen first. This is disruptive to any in-flight
+  // transaction on the channel, so callers should only invoke it between
+  // probe cycles. Boards without bridge hardware to loop back report
+  // false/not-supported.
+  virtual bool selfTest(uint32_t timeoutMs) { return false; }
 };
 
 Rs485Channel& solinstRs485Channel();

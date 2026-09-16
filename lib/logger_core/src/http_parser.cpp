@@ -45,6 +45,9 @@ HttpRoute routeTarget(const char* target, size_t targetLength) {
   if (equals(target, targetLength, "/display/sleep")) {
     return HttpRoute::DISPLAY_SLEEP;
   }
+  if (equals(target, targetLength, "/rs485/selftest")) {
+    return HttpRoute::RS485_SELFTEST;
+  }
   return HttpRoute::UNKNOWN;
 }
 
@@ -161,8 +164,10 @@ HttpRouteDecision routeHttpRequest(const HttpRequest& request) {
   const bool displayAction =
       request.route >= HttpRoute::DISPLAY_REFRESH &&
       request.route <= HttpRoute::DISPLAY_SLEEP;
-  if ((displayAction && request.method != HttpMethod::POST) ||
-      (!displayAction && request.method != HttpMethod::GET)) {
+  const bool postOnlyAction =
+      displayAction || request.route == HttpRoute::RS485_SELFTEST;
+  if ((postOnlyAction && request.method != HttpMethod::POST) ||
+      (!postOnlyAction && request.method != HttpMethod::GET)) {
     return HttpRouteDecision::METHOD_NOT_ALLOWED;
   }
   switch (request.route) {
@@ -177,6 +182,7 @@ HttpRouteDecision routeHttpRequest(const HttpRequest& request) {
     case HttpRoute::DISPLAY_RESUME: return HttpRouteDecision::DISPLAY_RESUME;
     case HttpRoute::DISPLAY_REBOOT: return HttpRouteDecision::DISPLAY_REBOOT;
     case HttpRoute::DISPLAY_SLEEP: return HttpRouteDecision::DISPLAY_SLEEP;
+    case HttpRoute::RS485_SELFTEST: return HttpRouteDecision::RS485_SELFTEST;
     case HttpRoute::UNKNOWN: return HttpRouteDecision::NOT_FOUND;
   }
   return HttpRouteDecision::NOT_FOUND;

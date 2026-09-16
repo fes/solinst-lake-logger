@@ -65,6 +65,14 @@ class GigaRs485Channel final : public Rs485Channel {
     return result;
   }
 
+  bool attemptRecovery() override {
+    return bridge_.reset();
+  }
+
+  bool selfTest(uint32_t timeoutMs) override {
+    return bridge_.internalLoopbackTest(channel_, timeoutMs);
+  }
+
  private:
   const char* channelName_;
   Sc16is752Spi& bridge_;

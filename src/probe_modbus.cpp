@@ -213,6 +213,7 @@ bool readInputRegistersWithRetry(uint8_t slaveId, uint16_t startReg, uint16_t qu
     kickSystemWatchdog();
     if (readInputRegistersOnce(slaveId, startReg, quantity, values, &lastError,
                                &lastResponseLength)) {
+      consecutiveSolinstModbusFailures = 0;
       return true;
     }
 

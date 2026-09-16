@@ -100,6 +100,11 @@ uint32_t consecutiveUploadFailures = 0;
 uint32_t permanentUploadRejections = 0;
 uint32_t permanentBacklogDrops = 0;
 
+uint32_t consecutiveSolinstModbusFailures = 0;
+uint32_t consecutiveWeatherModbusFailures = 0;
+uint32_t rs485BridgeRecoveryAttempts = 0;
+uint32_t rs485BridgeRecoverySuccesses = 0;
+
 ModbusFailureDiagnostic
     modbusFailureHistory[MODBUS_FAILURE_HISTORY_CAPACITY];
 logger_core::DiagnosticHistoryState modbusFailureHistoryState;

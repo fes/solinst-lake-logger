@@ -33,6 +33,31 @@ String makePayload(const ProbeReading &r) {
   payload += "\"status\":\"";
   payload += r.valid ? "OK" : "WATER_UNAVAILABLE";
   payload += "\"";
+
+  // Diagnostic extension fields (see feslabs-web's lake-ingest extension-
+  // field mechanism): persisted per-upload so a run of Modbus failures can
+  // be correlated after the fact against bridge health and power state,
+  // without needing to catch it live via /status.
+  payload += ",\"modbus_failure_total\":" + String(modbusFailureHistoryState.totalCount);
+  payload += ",\"consecutive_solinst_modbus_failures\":" + String(consecutiveSolinstModbusFailures);
+  payload += ",\"consecutive_weather_modbus_failures\":" + String(consecutiveWeatherModbusFailures);
+  payload += ",\"rs485_bridge_recovery_attempts\":" + String(rs485BridgeRecoveryAttempts);
+  payload += ",\"rs485_bridge_recovery_successes\":" + String(rs485BridgeRecoverySuccesses);
+  {
+    const Rs485ChannelHealth h = solinstRs485Channel().health();
+    payload += ",\"rs485_solinst_bridge_overrun_error\":" + String(h.overrunError ? "true" : "false");
+    payload += ",\"rs485_solinst_bridge_parity_error\":" + String(h.parityError ? "true" : "false");
+    payload += ",\"rs485_solinst_bridge_framing_error\":" + String(h.framingError ? "true" : "false");
+    payload += ",\"rs485_solinst_bridge_break_detected\":" + String(h.breakDetected ? "true" : "false");
+  }
+  {
+    const Rs485ChannelHealth h = weatherRs485Channel().health();
+    payload += ",\"rs485_weather_bridge_overrun_error\":" + String(h.overrunError ? "true" : "false");
+    payload += ",\"rs485_weather_bridge_parity_error\":" + String(h.parityError ? "true" : "false");
+    payload += ",\"rs485_weather_bridge_framing_error\":" + String(h.framingError ? "true" : "false");
+    payload += ",\"rs485_weather_bridge_break_detected\":" + String(h.breakDetected ? "true" : "false");
+  }
+
   payload += "}";
   return payload;
 }

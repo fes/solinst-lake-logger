@@ -26,6 +26,10 @@ class Sc16is752Spi {
   uint8_t lineStatus(uint8_t channel);
   bool internalLoopbackTest(uint8_t channel, uint32_t timeoutMs);
   bool interruptActive() const;
+  // Forces a full bridge re-init (re-runs begin(), including the
+  // scratch-register self-test on both channels), for use as an automatic
+  // recovery step after repeated Modbus failures on either channel.
+  bool reset();
 
  private:
   static constexpr uint32_t CRYSTAL_HZ = 14745600UL;

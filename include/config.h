@@ -103,6 +103,11 @@ constexpr int READ_RETRIES = 4;
 constexpr unsigned long INITIAL_BACKOFF_MS = 250;
 constexpr unsigned long MAX_BACKOFF_MS     = 4000;
 constexpr size_t MODBUS_FAILURE_HISTORY_CAPACITY = 8;
+// After this many *consecutive* failures on a single channel, attempt an
+// automatic RS-485 bridge recovery (see Rs485Channel::attemptRecovery()).
+// Kept small since a run of failures self-recovering (e.g. from a
+// brownout or noise burst) is exactly the pattern we want to shorten.
+constexpr uint32_t MODBUS_BRIDGE_RECOVERY_THRESHOLD = 3;
 constexpr size_t MODBUS_FAILURE_TIMESTAMP_SIZE = 21;
 constexpr size_t MODBUS_FAILURE_CHANNEL_SIZE = 9;
 constexpr size_t MODBUS_FAILURE_REASON_SIZE = 64;
@@ -330,6 +335,11 @@ extern uint32_t droppedBacklogEntries;
 extern uint32_t consecutiveUploadFailures;
 extern uint32_t permanentUploadRejections;
 extern uint32_t permanentBacklogDrops;
+
+extern uint32_t consecutiveSolinstModbusFailures;
+extern uint32_t consecutiveWeatherModbusFailures;
+extern uint32_t rs485BridgeRecoveryAttempts;
+extern uint32_t rs485BridgeRecoverySuccesses;
 
 struct ModbusFailureDiagnostic {
   char timestampUtc[MODBUS_FAILURE_TIMESTAMP_SIZE] = "";

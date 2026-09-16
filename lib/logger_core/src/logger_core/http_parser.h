@@ -29,6 +29,7 @@ enum class HttpRoute : uint8_t {
   DISPLAY_RESUME,
   DISPLAY_REBOOT,
   DISPLAY_SLEEP,
+  RS485_SELFTEST,
   UNKNOWN
 };
 
@@ -59,6 +60,7 @@ enum class HttpRouteDecision : uint8_t {
   DISPLAY_RESUME,
   DISPLAY_REBOOT,
   DISPLAY_SLEEP,
+  RS485_SELFTEST,
   NOT_FOUND,
   METHOD_NOT_ALLOWED
 };

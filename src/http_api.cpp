@@ -129,8 +129,10 @@ String endpointIndexHtml() {
   body += "<li><button onclick=\"displayCommand('reboot',true)\">Reboot display</button></li>";
   body += "<li><button onclick=\"displayCommand('sleep',true)\">Deep-sleep display</button></li>";
   body += "<li><button onclick=\"confirmReset()\">/reset</button> - reboot the device</li>";
+  body += "<li><button onclick=\"postCommand('/rs485/selftest')\">RS-485 self-test</button> - internal loopback test of the bridge (not the sensors)</li>";
   body += "</ul><script>function confirmReset(){if(confirm('Reset the lake logger now?')){window.location='/reset';}}";
-  body += "function displayCommand(c,d){if(d&&!confirm('Send '+c+' to the display?'))return;fetch('/display/'+c,{method:'POST'}).then(r=>r.json()).then(j=>alert(JSON.stringify(j))).catch(e=>alert(e));}</script></body></html>";
+  body += "function postCommand(path){fetch(path,{method:'POST'}).then(r=>r.json()).then(j=>alert(JSON.stringify(j))).catch(e=>alert(e));}";
+  body += "function displayCommand(c,d){if(d&&!confirm('Send '+c+' to the display?'))return;postCommand('/display/'+c);}</script></body></html>";
   return body;
 }
 
@@ -231,6 +233,14 @@ String statusJson() {
   body += "\"upload_endpoint_https\":" + String(uploadEndpointUsesHttps() ? "true" : "false") + ",";
   body += "\"modbus_failure_total\":" +
           String(modbusFailureHistoryState.totalCount) + ",";
+  body += "\"consecutive_solinst_modbus_failures\":" +
+          String(consecutiveSolinstModbusFailures) + ",";
+  body += "\"consecutive_weather_modbus_failures\":" +
+          String(consecutiveWeatherModbusFailures) + ",";
+  body += "\"rs485_bridge_recovery_attempts\":" +
+          String(rs485BridgeRecoveryAttempts) + ",";
+  body += "\"rs485_bridge_recovery_successes\":" +
+          String(rs485BridgeRecoverySuccesses) + ",";
   body += "\"modbus_failure_history\":[";
   for (size_t offset = 0; offset < modbusFailureHistoryState.count; ++offset) {
     const size_t index = logger_core::diagnosticHistoryIndex(
@@ -505,12 +515,13 @@ void handleHttpClient() {
       logger_core::routeHttpRequest(request);
   if (routeDecision == logger_core::HttpRouteDecision::METHOD_NOT_ALLOWED) {
     Serial.println("HTTP: method not allowed");
-    const bool displayAction =
-        request.route >= logger_core::HttpRoute::DISPLAY_REFRESH &&
-        request.route <= logger_core::HttpRoute::DISPLAY_SLEEP;
+    const bool postOnlyAction =
+        (request.route >= logger_core::HttpRoute::DISPLAY_REFRESH &&
+         request.route <= logger_core::HttpRoute::DISPLAY_SLEEP) ||
+        request.route == logger_core::HttpRoute::RS485_SELFTEST;
     sendHttpError(
         client, 405, "method not allowed",
-        displayAction ? "Allow: POST" : "Allow: GET");
+        postOnlyAction ? "Allow: POST" : "Allow: GET");
   } else if (routeDecision == logger_core::HttpRouteDecision::INDEX) {
     Serial.println("HTTP: handling /");
     sendHttpHtml(client, 200, endpointIndexHtml());
@@ -534,6 +545,28 @@ void handleHttpClient() {
     client.flush();
     delay(200);
     NVIC_SystemReset();
+  } else if (routeDecision == logger_core::HttpRouteDecision::RS485_SELFTEST) {
+    Serial.println("HTTP: handling /rs485/selftest");
+    // Internal loopback test only -- exercises the bridge/UART core, not
+    // the physical RS-485 pair or the downstream sensor. Disruptive to any
+    // in-flight transaction on these channels, which is why this is a
+    // POST-only, manually-triggered diagnostic rather than something
+    // polled automatically.
+    constexpr uint32_t SELFTEST_TIMEOUT_MS = 200;
+    const bool solinstOk = solinstRs485Channel().selfTest(SELFTEST_TIMEOUT_MS);
+    const bool weatherOk = weatherRs485Channel().selfTest(SELFTEST_TIMEOUT_MS);
+    const bool solinstSupported = solinstRs485Channel().health().supported;
+    const bool weatherSupported = weatherRs485Channel().health().supported;
+    String body = "{";
+    body += "\"solinst_selftest_supported\":" + String(solinstSupported ? "true" : "false") + ",";
+    body += "\"solinst_selftest_passed\":" + String(solinstOk ? "true" : "false") + ",";
+    body += "\"weather_selftest_supported\":" + String(weatherSupported ? "true" : "false") + ",";
+    body += "\"weather_selftest_passed\":" + String(weatherOk ? "true" : "false");
+    body += "}";
+    const bool anySupported = solinstSupported || weatherSupported;
+    const bool allSupportedPassed =
+        (!solinstSupported || solinstOk) && (!weatherSupported || weatherOk);
+    sendHttpJson(client, anySupported && allSupportedPassed ? 200 : 503, body);
   } else if (
       routeDecision >= logger_core::HttpRouteDecision::DISPLAY_STATUS &&
       routeDecision <= logger_core::HttpRouteDecision::DISPLAY_SLEEP) {

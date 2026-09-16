@@ -102,6 +102,7 @@ bool readWeatherHoldingRegistersWithRetry(uint8_t slaveId, uint16_t startReg, ui
     kickSystemWatchdog();
     if (readWeatherHoldingRegistersOnce(slaveId, startReg, quantity, values,
                                         &lastError, &lastResponseLength)) {
+      consecutiveWeatherModbusFailures = 0;
       return true;
     }
 

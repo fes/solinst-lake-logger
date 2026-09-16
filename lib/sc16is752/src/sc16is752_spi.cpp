@@ -186,6 +186,11 @@ bool Sc16is752Spi::interruptActive() const {
   return irqPin_ >= 0 && digitalRead(irqPin_) == LOW;
 }
 
+bool Sc16is752Spi::reset() {
+  started_ = false;
+  return begin();
+}
+
 uint8_t Sc16is752Spi::command(
     uint8_t channel, uint8_t reg, bool read) const {
   return static_cast<uint8_t>(
